@@ -1,0 +1,11 @@
+/* 광고 차단 기본 스타일 */
+.ad-container, .banner-ad, [class*="ad_"] {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+}
+
+iframe[src*="adservice"] {
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
