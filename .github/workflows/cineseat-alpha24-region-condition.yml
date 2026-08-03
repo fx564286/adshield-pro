@@ -67,7 +67,8 @@ jobs:
               'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
               'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
               'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n' +
-              'python3 secure_payload/apply_alpha24_region_condition.py "$SOURCE/payload"\n',
+              'python3 secure_payload/apply_alpha24_region_condition.py "$SOURCE/payload"\n' +
+              'printf "\\n// Cineseat 0.2.1-alpha.24\\n" >> "$SOURCE/payload/lib/wizard_v4.dart"\n',
               1,
           )
 
