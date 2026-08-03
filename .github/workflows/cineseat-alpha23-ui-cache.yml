@@ -1,0 +1,154 @@
+name: Cineseat Alpha23 UI Cache
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA23_BUILD_TRIGGER.txt'
+      - 'secure_payload/apply_alpha23_ui_cache.py.gz.b64.part*'
+      - '.github/workflows/cineseat-alpha23-ui-cache.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha23-ui-cache-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct alpha22 and alpha23 patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          echo '1c91eac884a7947197032a1dff7046f93cfb5f96e5be13188242ebf52a571f0c  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00' | sha256sum -c - || failed=1
+          echo '57f52ca5dea3485e753c5f20d49887191568be43974ecbc3a182f1f39c1e470c  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01' | sha256sum -c - || failed=1
+          echo '214359cf3e305265e37bc2502a6a0bff9210357a11d32af63196fec0077ac1a3  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02' | sha256sum -c - || failed=1
+          echo '90fd5e64c8d96d4fbd92e03e61acb63b31875eaf24b946bd5c86e764d19b00e0  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a' | sha256sum -c - || failed=1
+          echo '08d5a1406c5310ac4dbacc8c55a150feeca48d2fbd18001f1e6d01e1d5fd5cde  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b' | sha256sum -c - || failed=1
+          echo 'd6503627430510bf8336e4260c40c03e9c13b54c67bfdc8b3b09db0df19ff55f  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04' | sha256sum -c - || failed=1
+          echo '1ed89ce855cb45c863e4bc531338a239c485f2209fad31ddd85d4751e424993c  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05' | sha256sum -c - || failed=1
+          echo '75203fd4d6687742b3799f0190131f3cefaa95d8553373eb43ffa35114c6b77d  secure_payload/apply_alpha23_ui_cache.py.gz.b64.part00' | sha256sum -c - || failed=1
+          echo '36257e8977f449288a5d003a5537691b089958027cf00fe439738d3f20f98b1e  secure_payload/apply_alpha23_ui_cache.py.gz.b64.part01' | sha256sum -c - || failed=1
+          test "$failed" -eq 0
+
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha22_seat_ui_fix.py
+          cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha23_ui_cache.py
+          echo '7fc4ff786f9609919c57dc018f951af82420c26a899ad683767f3aa3d5d1e024  secure_payload/apply_alpha22_seat_ui_fix.py' | sha256sum -c -
+          echo 'a1f7c37e56a5262b05ccfc8aeb3b25fc54c7630658908b3e378ada1f12f392c7  secure_payload/apply_alpha23_ui_cache.py' | sha256sum -c -
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+          python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
+
+      - name: Prepare alpha23 stable builder wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable home addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n',
+              1,
+          )
+
+          text_anchor = "text = source.read_text(encoding='utf-8')\n"
+          if text_anchor not in wrapper:
+              raise SystemExit('underlying builder text anchor missing')
+          wrapper = wrapper.replace(
+              text_anchor,
+              text_anchor +
+              "text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.23')\n" +
+              "text = text.replace('version: 0.2.1-alpha.23+41', 'version: 0.2.1-alpha.23+43')\n" +
+              "text = text.replace('--build-number=41', '--build-number=43')\n" +
+              "text = text.replace(\"versionCode='41'\", \"versionCode='43'\")\n" +
+              "text = text.replace('Cineseat 0.2.1-alpha.21 validation build', 'Cineseat 0.2.1-alpha.23 validation build')\n",
+              1,
+          )
+          wrapper = wrapper.replace(
+              '/tmp/build_alpha21_overlay_v2_public.sh',
+              '/tmp/build_alpha23_overlay_v2_public.sh',
+          )
+          Path('/tmp/run_alpha23_stable.sh').write_text(wrapper, encoding='utf-8')
+          PY
+          chmod +x /tmp/run_alpha23_stable.sh
+
+      - name: Restore runner-only RSA key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Build and verify Cineseat alpha23
+        shell: bash
+        run: bash /tmp/run_alpha23_stable.sh
+
+      - name: Verify alpha23 source and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "versionCode='43'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionName='0.2.1-alpha.23'" dist/APK-PACKAGE-INFO.txt
+          test -s dist/cineseat-0.2.1-alpha.23-VALIDATION.apk
+          unzip -tq dist/cineseat-0.2.1-alpha.23-VALIDATION.apk
+          cat >> dist/BUILD_REPORT.txt <<'REPORT'
+          - new and edit watch flows use one unified three-step WatchWizard
+          - create mode hides edit-only schedule/theater controls
+          - edit mode preserves the original watch ID and active state
+          - stable 2x2 watch-condition selector and one fixed editor card
+          - collapsed province/district accordion with selected-region summary
+          - watch cards use fixed inline actions instead of an oversized popup menu
+          - theater loading no longer blocks on GPS; location is requested only for nearby sorting
+          - persisted 12-hour theater cache with local distance calculation
+          - persisted 2-minute catalog cache with stale fallback and explicit pull-to-refresh
+          - bounded two-attempt network retry with shorter timeout
+          - alpha22 seat map, direct selection, zoom/pan and long-press magnifier retained
+          REPORT
+
+      - name: Upload alpha23 build package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha23-ui-cache-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
