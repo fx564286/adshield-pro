@@ -1,4 +1,4 @@
 Cineseat alpha23 unified create/edit UI, accordion regions, fixed watch-card actions and fast theater/catalog cache build.
-Triggered: 2026-08-04T05:47:00+09:00
+Triggered: 2026-08-04T05:55:00+09:00
 Payload branch: alpha22 encrypted source baseline + alpha23 patch
-Fix: Material region accordion + auto-collapse after district selection
+Fix: Material region accordion + ExpansionTileController collapse
