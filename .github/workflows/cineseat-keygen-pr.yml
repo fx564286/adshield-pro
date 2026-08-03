@@ -1,0 +1,40 @@
+name: Cineseat Secure Keygen PR
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  keygen:
+    if: github.actor == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore one-time private key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+      - name: Create or restore one-time key pair
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p secure_runtime
+          if [[ ! -s secure_runtime/private.pem ]]; then
+            openssl genpkey -algorithm RSA \
+              -pkeyopt rsa_keygen_bits:4096 \
+              -out secure_runtime/private.pem
+            chmod 600 secure_runtime/private.pem
+          fi
+          openssl pkey -in secure_runtime/private.pem \
+            -pubout -out secure_runtime/public.pem
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-secure-public-key-pr-${{ github.run_number }}
+          path: secure_runtime/public.pem
+          if-no-files-found: error
+          retention-days: 1
