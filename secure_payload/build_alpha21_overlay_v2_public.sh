@@ -46,26 +46,28 @@ import sys
 
 path = Path(sys.argv[1]) / 'lib/wizard_v4.dart'
 source = path.read_text(encoding='utf-8')
-old = '''    return Container(
-      key: const Key('region_filter_panel'),
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: _border),
-      ),
-      child: Theme(
-'''
-new = '''    return Material(
-      key: const Key('region_filter_panel'),
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
-        side: const BorderSide(color: _border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Theme(
-'''
+old = (
+    "    return Container(\n"
+    "      key: const Key('region_filter_panel'),\n"
+    "      width: double.infinity,\n"
+    "      decoration: BoxDecoration(\n"
+    "        color: Colors.white,\n"
+    "        borderRadius: BorderRadius.circular(22),\n"
+    "        border: Border.all(color: _border),\n"
+    "      ),\n"
+    "      child: Theme(\n"
+)
+new = (
+    "    return Material(\n"
+    "      key: const Key('region_filter_panel'),\n"
+    "      color: Colors.white,\n"
+    "      shape: RoundedRectangleBorder(\n"
+    "        borderRadius: BorderRadius.circular(22),\n"
+    "        side: const BorderSide(color: _border),\n"
+    "      ),\n"
+    "      clipBehavior: Clip.antiAlias,\n"
+    "      child: Theme(\n"
+)
 if old in source:
     path.write_text(source.replace(old, new, 1), encoding='utf-8')
     print('region accordion Material surface applied')
