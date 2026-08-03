@@ -1,0 +1,223 @@
+name: Cineseat Alpha20 Secure V6
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.actor == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate encrypted payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s secure_payload/source.enc.b64.part01
+          test -s secure_payload/source.enc.b64.part10
+          test -s secure_payload/key.enc.b64
+
+      - name: Restore one-time RSA key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Decrypt source inside runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s secure_runtime/private.pem
+          mkdir -p secure_runtime/source
+          base64 --decode secure_payload/key.enc.b64 > secure_runtime/key.enc
+          openssl pkeyutl -decrypt \
+            -inkey secure_runtime/private.pem \
+            -in secure_runtime/key.enc \
+            -out secure_runtime/aes.key \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+          cat secure_payload/source.enc.b64.part* \
+            | base64 --decode > secure_runtime/source.enc
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in secure_runtime/source.enc \
+            -out secure_runtime/source.tar.gz \
+            -pass file:secure_runtime/aes.key
+          tar -xzf secure_runtime/source.tar.gz -C secure_runtime/source
+          test -s secure_runtime/source/payload/lib/main.dart
+          test -s secure_runtime/source/payload/test/alpha20_runtime_test.dart
+          test -s secure_runtime/source/payload/prepare_android.py
+          rm -f secure_runtime/aes.key secure_runtime/key.enc secure_runtime/source.enc
+
+      - name: Create Android project
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build_app dist
+          flutter create --platforms=android \
+            --org com.fx564286 \
+            --project-name cinema_seat_alert build_app
+          mkdir -p dist
+          rm -rf build_app/lib build_app/test
+          cp -R secure_runtime/source/payload/lib build_app/lib
+          cp -R secure_runtime/source/payload/test build_app/test
+          cat > build_app/pubspec.yaml <<'PUBSPEC'
+          name: cinema_seat_alert
+          description: Cineseat alpha20 secure release build
+          publish_to: none
+          version: 0.2.1-alpha.20+40
+
+          environment:
+            sdk: ">=3.10.0 <4.0.0"
+
+          dependencies:
+            flutter:
+              sdk: flutter
+            cupertino_icons: ^1.0.8
+            geolocator: ^14.0.3
+            http: ^1.4.0
+            shared_preferences: ^2.5.5
+            url_launcher: ^6.3.2
+            webview_flutter: ^4.14.1
+
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^6.0.0
+
+          flutter:
+            uses-material-design: true
+          PUBSPEC
+          python3 secure_runtime/source/payload/prepare_android.py build_app
+
+      - name: Analyze and test alpha20 behavior
+        working-directory: build_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+          dart format lib test
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test test/alpha20_runtime_test.dart --reporter expanded
+
+      - name: Verify requested alpha20 source
+        working-directory: build_app
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          texts = {
+              'wizard': Path('lib/wizard_v4.dart').read_text(encoding='utf-8'),
+              'services': Path('lib/services.dart').read_text(encoding='utf-8'),
+              'models': Path('lib/models.dart').read_text(encoding='utf-8'),
+              'controller': Path('lib/app_controller.dart').read_text(encoding='utf-8'),
+              'home': Path('lib/home.dart').read_text(encoding='utf-8'),
+          }
+          required = {
+              'wizard': [
+                  'class NewWatchWizard', 'class EditWatchWizard',
+                  'WatchWizardMode.create', "Key('region_filter_panel')",
+                  "Key('region_filter_wrap')", "Key('nearby_sort_chip')",
+                  'unawaited(_applyTheaterSort(_TheaterSort.distance))',
+                  'position: null',
+              ],
+              'services': [
+                  'class TheaterCacheSnapshot', 'theater_catalog_v3_',
+                  'theaterCacheTtl = Duration(hours: 6)',
+                  'loadTheaterCache(DateTime date)', '_storeTheaterCache(date, deduped)',
+              ],
+              'models': ["RegExp(r'(\\d{1,2}):(\\d{2})')"],
+              'controller': ['Future<void> removeExpiredWatches() async'],
+              'home': [
+                  'NewWatchWizard()', 'EditWatchWizard(initialItem: item)',
+                  'with WidgetsBindingObserver', 'AppLifecycleState.resumed',
+              ],
+          }
+          missing = {
+              name: [token for token in tokens if token not in texts[name]]
+              for name, tokens in required.items()
+              if any(token not in texts[name] for token in tokens)
+          }
+          if missing:
+              raise SystemExit(f'alpha20 verification failed: {missing}')
+          print('alpha20 source verification passed')
+          PY
+
+      - name: Build release APK
+        working-directory: build_app
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build apk --release --no-pub \
+            --build-name=0.2.1-alpha.20 \
+            --build-number=40
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            ../dist/cineseat-0.2.1-alpha.20-VALIDATION.apk
+
+      - name: Verify and package APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=dist/cineseat-0.2.1-alpha.20-VALIDATION.apk
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -s "$APK"
+          unzip -t "$APK"
+          "$TOOLS/zipalign" -c -v 4 "$APK"
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee dist/APK-SIGNATURE.txt
+          "$TOOLS/aapt" dump badging "$APK" | tee dist/APK-PACKAGE-INFO.txt
+          "$TOOLS/aapt" dump permissions "$APK" | tee dist/APK-PERMISSIONS.txt
+          "$TOOLS/aapt" dump xmltree "$APK" AndroidManifest.xml | tee dist/APK-MANIFEST.txt
+          grep -q "package: name='com.fx564286.cinema_seat_alert'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionCode='40'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionName='0.2.1-alpha.20'" dist/APK-PACKAGE-INFO.txt
+          grep -q 'android.permission.POST_NOTIFICATIONS' dist/APK-PERMISSIONS.txt
+          grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' dist/APK-PERMISSIONS.txt
+          grep -q 'android.permission.FOREGROUND_SERVICE_SPECIAL_USE' dist/APK-PERMISSIONS.txt
+          grep -q 'SeatMonitorService' dist/APK-MANIFEST.txt
+          grep -q 'BootReceiver' dist/APK-MANIFEST.txt
+          cp "$TOOLS/lib/apksigner.jar" dist/apksigner.jar
+          cp "$TOOLS/zipalign" dist/zipalign
+          chmod +x dist/zipalign
+          sha256sum "$APK" | tee dist/SHA256SUMS.txt
+          cat > dist/BUILD_REPORT.txt <<'NOTES'
+          Cineseat 0.2.1-alpha.20 validation build
+          - Dart analysis completed without fatal findings
+          - alpha20 runtime behavior tests passed
+          - requested alpha20 source tokens verified
+          - package, version, permissions and background components verified
+          - fixed production signing is applied after artifact download
+          NOTES
+
+      - name: Upload alpha20 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha20-secure-v6-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Remove decrypted files
+        if: always()
+        shell: bash
+        run: |
+          rm -rf secure_runtime/source build_app
+          rm -f secure_runtime/aes.key secure_runtime/key.enc \
+            secure_runtime/source.enc secure_runtime/source.tar.gz
