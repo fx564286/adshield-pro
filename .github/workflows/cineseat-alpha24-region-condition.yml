@@ -84,7 +84,9 @@ jobs:
               "text = text.replace('Cineseat 0.2.1-alpha.21 validation build', 'Cineseat 0.2.1-alpha.24 validation build')\n" +
               "text = text.replace(\"\\\"Key('district_filter_wrap')\\\",\", \"\\\"Key('region_theater_list')\\\",\")\n" +
               "text = text.replace('if \\\"district_서울_강남구\\\" not in test:', 'if \\\"region_theater_C1\\\" not in test:')\n" +
-              "text = text.replace('district selection runtime test is missing', 'two-pane region browser runtime test is missing')\n",
+              "text = text.replace('district selection runtime test is missing', 'two-pane region browser runtime test is missing')\n" +
+              "text = text.replace(\"if '0.2.1-alpha.21' not in all_dart:\", \"if '0.2.1-alpha.24' not in all_dart:\")\n" +
+              "text = text.replace('alpha21 version marker is missing', 'alpha24 version marker is missing')\n",
               1,
           )
           wrapper = wrapper.replace(
