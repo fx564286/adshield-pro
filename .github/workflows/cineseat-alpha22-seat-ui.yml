@@ -5,7 +5,7 @@ on:
     branches: [cineseat-secure-builder]
     paths:
       - 'secure_payload/ALPHA22_BUILD_TRIGGER.txt'
-      - 'secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64'
+      - 'secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part*'
       - '.github/workflows/cineseat-alpha22-seat-ui.yml'
 
 permissions:
@@ -45,8 +45,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64 \
+          cat secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part* > /tmp/alpha22-patch.b64
+          echo '9d5b95f6ece246df305ab5bbca55ee3ecbdcfeeb4b0d794559ba6eac321b7e1d  /tmp/alpha22-patch.b64' | sha256sum -c -
+          base64 --decode /tmp/alpha22-patch.b64 \
             | gzip --decompress > secure_payload/apply_alpha22_seat_ui_fix.py
+          echo '9558a06c3125cbc27f2f3254b3b91c2fc0301e479f110d7e8b84444b53bfa806  secure_payload/apply_alpha22_seat_ui_fix.py' | sha256sum -c -
           python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
           python3 - <<'PY'
           from pathlib import Path
