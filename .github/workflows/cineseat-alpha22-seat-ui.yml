@@ -41,41 +41,56 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Prepare alpha22 protected builder
+      - name: Prepare alpha22 protected stable builder
         shell: bash
         run: |
           set -euo pipefail
           cat secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part* > /tmp/alpha22-patch.b64
-          echo '9d5b95f6ece246df305ab5bbca55ee3ecbdcfeeb4b0d794559ba6eac321b7e1d  /tmp/alpha22-patch.b64' | sha256sum -c -
+          echo '357d59020770f737e804f5563f6b62980d57010b11442eea8603b41d4a2a19a2  /tmp/alpha22-patch.b64' | sha256sum -c -
           base64 --decode /tmp/alpha22-patch.b64 \
             | gzip --decompress > secure_payload/apply_alpha22_seat_ui_fix.py
-          echo '9558a06c3125cbc27f2f3254b3b91c2fc0301e479f110d7e8b84444b53bfa806  secure_payload/apply_alpha22_seat_ui_fix.py' | sha256sum -c -
+          echo '7fc4ff786f9609919c57dc018f951af82420c26a899ad683767f3aa3d5d1e024  secure_payload/apply_alpha22_seat_ui_fix.py' | sha256sum -c -
           python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
           python3 - <<'PY'
           from pathlib import Path
 
-          source = Path('secure_payload/build_alpha21_overlay_public.sh')
-          text = source.read_text(encoding='utf-8')
-          anchor = 'cp "$OVERLAY/overlay/app_icon.png" "$SOURCE/payload/app_icon.png"\n'
-          if anchor not in text:
-              raise SystemExit('alpha21 overlay insertion anchor missing')
-          text = text.replace(
-              anchor,
-              anchor + 'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n',
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable home addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n',
               1,
           )
-          text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.22')
-          text = text.replace('version: 0.2.1-alpha.22+41', 'version: 0.2.1-alpha.22+42')
-          text = text.replace('--build-number=41', '--build-number=42')
-          text = text.replace("versionCode='41'", "versionCode='42'")
-          text = text.replace('Cineseat 0.2.1-alpha.21 validation build', 'Cineseat 0.2.1-alpha.22 validation build')
-          Path('/tmp/build_alpha22.sh').write_text(text, encoding='utf-8')
+
+          text_anchor = "text = source.read_text(encoding='utf-8')\n"
+          if text_anchor not in wrapper:
+              raise SystemExit('underlying builder text anchor missing')
+          wrapper = wrapper.replace(
+              text_anchor,
+              text_anchor +
+              "text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.22')\n" +
+              "text = text.replace('version: 0.2.1-alpha.22+41', 'version: 0.2.1-alpha.22+42')\n" +
+              "text = text.replace('--build-number=41', '--build-number=42')\n" +
+              "text = text.replace(\"versionCode='41'\", \"versionCode='42'\")\n" +
+              "text = text.replace('Cineseat 0.2.1-alpha.21 validation build', 'Cineseat 0.2.1-alpha.22 validation build')\n",
+              1,
+          )
+          wrapper = wrapper.replace(
+              '/tmp/build_alpha21_overlay_v2_public.sh',
+              '/tmp/build_alpha22_overlay_v2_public.sh',
+          )
+          Path('/tmp/run_alpha22_stable.sh').write_text(wrapper, encoding='utf-8')
           PY
-          chmod +x /tmp/build_alpha22.sh
+          chmod +x /tmp/run_alpha22_stable.sh
 
       - name: Build and verify Cineseat alpha22
         shell: bash
-        run: bash /tmp/build_alpha22.sh
+        run: bash /tmp/run_alpha22_stable.sh
 
       - name: Verify alpha22 report tokens
         shell: bash
@@ -90,6 +105,7 @@ jobs:
           - available and occupied seats selectable for cancellation watch
           - 36px seat cells, pinch zoom/pan and long-press magnifier
           - selected seat summary and official reservation handoff
+          - alpha19 stable WatchWizard home entry restored before alpha22 patch
           REPORT
 
       - name: Upload alpha22 build package
