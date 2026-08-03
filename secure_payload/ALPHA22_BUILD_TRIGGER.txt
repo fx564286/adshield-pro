@@ -1,0 +1,2 @@
+Cineseat alpha22 seat provider, stable condition card, direct seat selection, larger zoomable seat map and long-press magnifier build.
+Triggered: 2026-08-03T10:34:00Z
