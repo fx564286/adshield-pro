@@ -37,6 +37,39 @@ printf '%s  %s\n' \
 tar -xJf "$RUNTIME/home-addon.tar.xz" -C "$OVERLAY/home-addon"
 cp "$OVERLAY/home-addon/addon/lib/home.dart" "$SOURCE/payload/lib/home.dart"
 rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"
+
+# ExpansionTile must paint on its own Material surface. This is a no-op for
+# older payloads and applies only when the alpha.23 region accordion exists.
+python3 - "$SOURCE/payload" <<'PYFIX'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1]) / 'lib/wizard_v4.dart'
+source = path.read_text(encoding='utf-8')
+old = '''    return Container(
+      key: const Key('region_filter_panel'),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: _border),
+      ),
+      child: Theme(
+'''
+new = '''    return Material(
+      key: const Key('region_filter_panel'),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: const BorderSide(color: _border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+'''
+if old in source:
+    path.write_text(source.replace(old, new, 1), encoding='utf-8')
+    print('region accordion Material surface applied')
+PYFIX
 '''
 if marker not in text:
     raise SystemExit('alpha21 overlay insertion marker missing')
