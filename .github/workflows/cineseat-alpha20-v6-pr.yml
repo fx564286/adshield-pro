@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cineseat-alpha20-v6-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     if: github.actor == github.repository_owner && github.event.pull_request.head.repo.full_name == github.repository
@@ -23,6 +27,8 @@ jobs:
           test -s secure_payload/source.enc.b64.part01
           test -s secure_payload/source.enc.b64.part10
           test -s secure_payload/key.enc.b64
+          test -s secure_payload/native.enc.b64
+          test -s secure_payload/native.key.enc.b64
 
       - name: Restore one-time RSA key
         uses: actions/cache@v4
@@ -41,6 +47,18 @@ jobs:
           flutter-version: '3.44.6'
           channel: stable
           cache: true
+
+      - name: Restore Android build caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ${{ env.ANDROID_HOME }}/cmake/3.22.1
+          key: cineseat-android-${{ runner.os }}-flutter-3.44.6-${{ hashFiles('secure_payload/source.enc.b64.part*', 'secure_payload/native.enc.b64') }}
+          restore-keys: |
+            cineseat-android-${{ runner.os }}-flutter-3.44.6-
+            cineseat-android-${{ runner.os }}-
 
       - name: Decrypt source inside runner
         shell: bash
@@ -106,6 +124,14 @@ jobs:
           flutter:
             uses-material-design: true
           PUBSPEC
+          cat >> build_app/android/gradle.properties <<'GRADLE'
+          org.gradle.parallel=true
+          org.gradle.caching=true
+          org.gradle.configureondemand=true
+          org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=1G -Dfile.encoding=UTF-8
+          kotlin.incremental=true
+          android.useAndroidX=true
+          GRADLE
           python3 secure_runtime/source/payload/prepare_android.py build_app
           python3 secure_payload/patch_cineseat_android.py build_app
 
@@ -207,6 +233,7 @@ jobs:
           - alpha20 runtime behavior tests passed
           - requested alpha20 source tokens verified
           - package, version, permissions and background components verified
+          - only canonical V6 workflow runs; Flutter, Gradle and CMake caches enabled
           - fixed production signing is applied after artifact download
           NOTES
 
@@ -222,6 +249,6 @@ jobs:
         if: always()
         shell: bash
         run: |
-          rm -rf secure_runtime/source build_app
+          rm -rf secure_runtime/source secure_runtime/native_restore build_app
           rm -f secure_runtime/aes.key secure_runtime/key.enc \
             secure_runtime/source.enc secure_runtime/source.tar.gz
