@@ -30,11 +30,20 @@ jobs:
           echo '1c91eac884a7947197032a1dff7046f93cfb5f96e5be13188242ebf52a571f0c  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00' | sha256sum -c - || failed=1
           echo '57f52ca5dea3485e753c5f20d49887191568be43974ecbc3a182f1f39c1e470c  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01' | sha256sum -c - || failed=1
           echo '214359cf3e305265e37bc2502a6a0bff9210357a11d32af63196fec0077ac1a3  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02' | sha256sum -c - || failed=1
-          echo 'e4db4c2ae8ee2c06a12e02a11d4e773ddfe2efad1532d7af32fdcdaedc752b40  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03' | sha256sum -c - || failed=1
+          echo '90fd5e64c8d96d4fbd92e03e61acb63b31875eaf24b946bd5c86e764d19b00e0  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a' | sha256sum -c - || failed=1
+          echo '08d5a1406c5310ac4dbacc8c55a150feeca48d2fbd18001f1e6d01e1d5fd5cde  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b' | sha256sum -c - || failed=1
           echo 'd6503627430510bf8336e4260c40c03e9c13b54c67bfdc8b3b09db0df19ff55f  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04' | sha256sum -c - || failed=1
           echo '1ed89ce855cb45c863e4bc531338a239c485f2209fad31ddd85d4751e424993c  secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05' | sha256sum -c - || failed=1
           test "$failed" -eq 0
-          cat secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part* > /tmp/alpha22-patch.b64
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            > /tmp/alpha22-patch.b64
           base64 --decode /tmp/alpha22-patch.b64 \
             | gzip --decompress > secure_payload/apply_alpha22_seat_ui_fix.py
           echo '7fc4ff786f9609919c57dc018f951af82420c26a899ad683767f3aa3d5d1e024  secure_payload/apply_alpha22_seat_ui_fix.py' | sha256sum -c -
