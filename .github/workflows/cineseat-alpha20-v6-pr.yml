@@ -107,6 +107,7 @@ jobs:
             uses-material-design: true
           PUBSPEC
           python3 secure_runtime/source/payload/prepare_android.py build_app
+          python3 secure_payload/patch_cineseat_android.py build_app
 
       - name: Analyze and test alpha20 behavior
         working-directory: build_app
@@ -188,9 +189,12 @@ jobs:
           grep -q "package: name='com.fx564286.cinema_seat_alert'" dist/APK-PACKAGE-INFO.txt
           grep -q "versionCode='40'" dist/APK-PACKAGE-INFO.txt
           grep -q "versionName='0.2.1-alpha.20'" dist/APK-PACKAGE-INFO.txt
+          grep -q 'android.permission.INTERNET' dist/APK-PERMISSIONS.txt
           grep -q 'android.permission.POST_NOTIFICATIONS' dist/APK-PERMISSIONS.txt
+          grep -q 'android.permission.WAKE_LOCK' dist/APK-PERMISSIONS.txt
           grep -q 'android.permission.RECEIVE_BOOT_COMPLETED' dist/APK-PERMISSIONS.txt
           grep -q 'android.permission.FOREGROUND_SERVICE_SPECIAL_USE' dist/APK-PERMISSIONS.txt
+          grep -q 'android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' dist/APK-PERMISSIONS.txt
           grep -q 'SeatMonitorService' dist/APK-MANIFEST.txt
           grep -q 'BootReceiver' dist/APK-MANIFEST.txt
           cp "$TOOLS/lib/apksigner.jar" dist/apksigner.jar
