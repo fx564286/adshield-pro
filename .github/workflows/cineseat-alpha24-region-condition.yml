@@ -40,7 +40,6 @@ jobs:
           cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
             | base64 --decode | gzip --decompress \
             > secure_payload/apply_alpha23_ui_cache.py
-          echo 'ebc98f729c5b29a22911d818c4a0a75f8e1ad03e3193f023b9902c6bcda8ac15  secure_payload/apply_alpha24_region_condition.py.gz.b64' | sha256sum -c -
           base64 --decode secure_payload/apply_alpha24_region_condition.py.gz.b64 \
             | gzip --decompress \
             > secure_payload/apply_alpha24_region_condition.py
