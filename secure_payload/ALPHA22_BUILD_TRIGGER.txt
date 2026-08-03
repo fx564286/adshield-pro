@@ -1,4 +1,4 @@
 Cineseat alpha22 seat provider, stable condition card, direct seat selection, larger zoomable seat map and long-press magnifier build.
-Triggered: 2026-08-03T11:01:00Z
-Payload: verified-split-chunk03-v7
-Builder: restored-alpha19-home-then-alpha22
+Triggered: 2026-08-03T11:08:00Z
+Payload: verified-split-chunk03-v8
+Builder: restored-alpha19-home-alpha22-booking-helper
