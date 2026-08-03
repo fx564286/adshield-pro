@@ -21,7 +21,9 @@ jobs:
         id: payload
         shell: bash
         run: |
-          if [[ -s secure_payload/source.enc.b64 && -s secure_payload/key.enc.b64 ]]; then
+          if [[ -s secure_payload/source.enc.b64.part01 && \
+                -s secure_payload/source.enc.b64.part10 && \
+                -s secure_payload/key.enc.b64 ]]; then
             echo 'present=true' >> "$GITHUB_OUTPUT"
           else
             echo 'present=false' >> "$GITHUB_OUTPUT"
@@ -87,7 +89,8 @@ jobs:
             -out secure_runtime/aes.key \
             -pkeyopt rsa_padding_mode:oaep \
             -pkeyopt rsa_oaep_md:sha256
-          base64 --decode secure_payload/source.enc.b64 > secure_runtime/source.enc
+          cat secure_payload/source.enc.b64.part* \
+            | base64 --decode > secure_runtime/source.enc
           openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
             -in secure_runtime/source.enc \
             -out secure_runtime/source.tar.gz \
