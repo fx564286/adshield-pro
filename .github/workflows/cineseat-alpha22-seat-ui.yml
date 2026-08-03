@@ -1,0 +1,91 @@
+name: Cineseat Alpha22 Seat UI
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA22_BUILD_TRIGGER.txt'
+      - 'secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64'
+      - '.github/workflows/cineseat-alpha22-seat-ui.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha22-seat-ui-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore runner-only RSA key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Prepare alpha22 protected builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64 \
+            | gzip --decompress > secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('secure_payload/build_alpha21_overlay_public.sh')
+          text = source.read_text(encoding='utf-8')
+          anchor = 'cp "$OVERLAY/overlay/app_icon.png" "$SOURCE/payload/app_icon.png"\n'
+          if anchor not in text:
+              raise SystemExit('alpha21 overlay insertion anchor missing')
+          text = text.replace(
+              anchor,
+              anchor + 'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n',
+              1,
+          )
+          text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.22')
+          text = text.replace('alpha21', 'alpha22').replace('Alpha21', 'Alpha22')
+          text = text.replace('version: 0.2.1-alpha.22+41', 'version: 0.2.1-alpha.22+42')
+          text = text.replace('--build-number=41', '--build-number=42')
+          text = text.replace("versionCode='41'", "versionCode='42'")
+          Path('/tmp/build_alpha22.sh').write_text(text, encoding='utf-8')
+          PY
+          chmod +x /tmp/build_alpha22.sh
+
+      - name: Build and verify Cineseat alpha22
+        shell: bash
+        run: bash /tmp/build_alpha22.sh
+
+      - name: Verify alpha22 report tokens
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "versionCode='42'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionName='0.2.1-alpha.22'" dist/APK-PACKAGE-INFO.txt
+          test -s dist/cineseat-0.2.1-alpha.22-VALIDATION.apk
+
+      - name: Upload alpha22 build package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha22-seat-ui-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
