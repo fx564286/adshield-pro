@@ -1,14 +1,74 @@
 from pathlib import Path
+import base64
 import re
+import shutil
+import subprocess
 import sys
+import tarfile
 
+repo_root = Path.cwd()
 root = Path(sys.argv[1] if len(sys.argv) > 1 else 'build_app')
 manifest = root / 'android/app/src/main/AndroidManifest.xml'
 if not manifest.exists():
     raise SystemExit(f'Manifest not found: {manifest}')
 
 kotlin_dir = root / 'android/app/src/main/kotlin/com/fx564286/cinema_seat_alert'
-for name in ('MainActivity.kt', 'SeatMonitorService.kt', 'BootReceiver.kt'):
+kotlin_dir.mkdir(parents=True, exist_ok=True)
+required_native = ('MainActivity.kt', 'SeatMonitorService.kt', 'BootReceiver.kt')
+
+if any(not (kotlin_dir / name).exists() for name in required_native):
+    payload_dir = repo_root / 'secure_payload'
+    runtime_dir = repo_root / 'secure_runtime/native_restore'
+    private_key = repo_root / 'secure_runtime/private.pem'
+    encrypted_payload = payload_dir / 'native.enc.b64'
+    encrypted_key = payload_dir / 'native.key.enc.b64'
+    for path in (private_key, encrypted_payload, encrypted_key):
+        if not path.exists() or path.stat().st_size == 0:
+            raise SystemExit(f'Encrypted native prerequisite missing: {path}')
+
+    if runtime_dir.exists():
+        shutil.rmtree(runtime_dir)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    key_enc = runtime_dir / 'native.key.enc'
+    aes_key = runtime_dir / 'native.aes.key'
+    payload_enc = runtime_dir / 'native.enc'
+    archive = runtime_dir / 'native.tar.gz'
+    extract_dir = runtime_dir / 'extracted'
+    extract_dir.mkdir(parents=True, exist_ok=True)
+
+    key_enc.write_bytes(base64.b64decode(encrypted_key.read_text(encoding='utf-8')))
+    payload_enc.write_bytes(base64.b64decode(encrypted_payload.read_text(encoding='utf-8')))
+    subprocess.run(
+        [
+            'openssl', 'pkeyutl', '-decrypt',
+            '-inkey', str(private_key),
+            '-in', str(key_enc),
+            '-out', str(aes_key),
+            '-pkeyopt', 'rsa_padding_mode:oaep',
+            '-pkeyopt', 'rsa_oaep_md:sha256',
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            'openssl', 'enc', '-d', '-aes-256-cbc', '-pbkdf2', '-iter', '200000',
+            '-in', str(payload_enc),
+            '-out', str(archive),
+            '-pass', f'file:{aes_key}',
+        ],
+        check=True,
+    )
+    with tarfile.open(archive, 'r:gz') as package:
+        package.extractall(extract_dir)
+    native_source = extract_dir / 'kotlin/com/fx564286/cinema_seat_alert'
+    for name in required_native:
+        source = native_source / name
+        if not source.exists() or source.stat().st_size == 0:
+            raise SystemExit(f'Decrypted Android source missing: {source}')
+        shutil.copy2(source, kotlin_dir / name)
+    shutil.rmtree(runtime_dir)
+
+for name in required_native:
     path = kotlin_dir / name
     if not path.exists() or path.stat().st_size == 0:
         raise SystemExit(f'Required Android source missing: {path}')
@@ -95,4 +155,4 @@ required_tokens = [
 missing = [token for token in required_tokens if token not in final]
 if missing:
     raise SystemExit(f'Android manifest patch incomplete: {missing}')
-print('Cineseat Android background components patched')
+print('Cineseat encrypted native sources and background components patched')
