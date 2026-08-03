@@ -38,15 +38,17 @@ tar -xJf "$RUNTIME/home-addon.tar.xz" -C "$OVERLAY/home-addon"
 cp "$OVERLAY/home-addon/addon/lib/home.dart" "$SOURCE/payload/lib/home.dart"
 rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"
 
-# ExpansionTile must paint on its own Material surface. This is a no-op for
-# older payloads and applies only when the alpha.23 region accordion exists.
+# Apply alpha.23-only region accordion polish after its patch is assembled.
+# These exact replacements are no-ops for older payloads.
 python3 - "$SOURCE/payload" <<'PYFIX'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1]) / 'lib/wizard_v4.dart'
 source = path.read_text(encoding='utf-8')
-old = (
+changed = False
+
+old_surface = (
     "    return Container(\n"
     "      key: const Key('region_filter_panel'),\n"
     "      width: double.infinity,\n"
@@ -57,7 +59,7 @@ old = (
     "      ),\n"
     "      child: Theme(\n"
 )
-new = (
+new_surface = (
     "    return Material(\n"
     "      key: const Key('region_filter_panel'),\n"
     "      color: Colors.white,\n"
@@ -68,9 +70,27 @@ new = (
     "      clipBehavior: Clip.antiAlias,\n"
     "      child: Theme(\n"
 )
-if old in source:
-    path.write_text(source.replace(old, new, 1), encoding='utf-8')
-    print('region accordion Material surface applied')
+if old_surface in source:
+    source = source.replace(old_surface, new_surface, 1)
+    changed = True
+
+old_district = (
+    "                      onSelected: (_) =>\n"
+    "                          setState(() => _districtFilter = district),\n"
+)
+new_district = (
+    "                      onSelected: (_) => setState(() {\n"
+    "                        _districtFilter = district;\n"
+    "                        _regionPanelExpanded = false;\n"
+    "                      }),\n"
+)
+if old_district in source:
+    source = source.replace(old_district, new_district, 1)
+    changed = True
+
+if changed:
+    path.write_text(source, encoding='utf-8')
+    print('region accordion Material surface and auto-collapse applied')
 PYFIX
 '''
 if marker not in text:
