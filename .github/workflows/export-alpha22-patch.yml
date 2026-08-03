@@ -1,0 +1,39 @@
+name: Export Alpha22 Patch
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/EXPORT_ALPHA22_TRIGGER.txt'
+      - '.github/workflows/export-alpha22-patch.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress > apply_alpha22_seat_ui_fix.py
+          cp secure_payload/apply_alpha22_booking_helper_fix.py .
+          python3 -m py_compile apply_alpha22_seat_ui_fix.py apply_alpha22_booking_helper_fix.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha22-patch-source
+          path: |
+            apply_alpha22_seat_ui_fix.py
+            apply_alpha22_booking_helper_fix.py
+          retention-days: 2
