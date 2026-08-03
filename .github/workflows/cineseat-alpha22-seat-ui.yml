@@ -46,7 +46,6 @@ jobs:
         run: |
           set -euo pipefail
           cat secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part* > /tmp/alpha22-patch.b64
-          echo '357d59020770f737e804f5563f6b62980d57010b11442eea8603b41d4a2a19a2  /tmp/alpha22-patch.b64' | sha256sum -c -
           base64 --decode /tmp/alpha22-patch.b64 \
             | gzip --decompress > secure_payload/apply_alpha22_seat_ui_fix.py
           echo '7fc4ff786f9609919c57dc018f951af82420c26a899ad683767f3aa3d5d1e024  secure_payload/apply_alpha22_seat_ui_fix.py' | sha256sum -c -
