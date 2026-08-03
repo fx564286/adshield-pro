@@ -1,4 +1,4 @@
 Cineseat alpha24 two-pane region and theater browser with independent cancellation-monitoring condition cards.
-Triggered: 2026-08-04T07:28:00+09:00
+Triggered: 2026-08-04T07:33:00+09:00
 Baseline: alpha23 cache and unified WatchWizard
-Fix: decoded patch integrity and two-pane verifier
+Fix: chunked patch reconstruction and two-pane verifier
