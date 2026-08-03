@@ -1,1 +1,1 @@
-Run the corrected alpha20 V6 build and package the validation APK for fixed local signing.
+Run corrected alpha20 V6 build after restoring decrypted Android native sources. Trigger 2026-08-03 16:05 KST.
