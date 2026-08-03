@@ -6,6 +6,7 @@ on:
     paths:
       - 'secure_payload/ALPHA22_BUILD_TRIGGER.txt'
       - 'secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part*'
+      - 'secure_payload/apply_alpha22_booking_helper_fix.py'
       - '.github/workflows/cineseat-alpha22-seat-ui.yml'
 
 permissions:
@@ -48,6 +49,7 @@ jobs:
             | gzip --decompress > secure_payload/apply_alpha22_seat_ui_fix.py
           echo '7fc4ff786f9609919c57dc018f951af82420c26a899ad683767f3aa3d5d1e024  secure_payload/apply_alpha22_seat_ui_fix.py' | sha256sum -c -
           python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
 
       - name: Prepare alpha22 stable builder wrapper
         shell: bash
@@ -65,7 +67,8 @@ jobs:
           wrapper = wrapper.replace(
               addon_anchor,
               addon_anchor +
-              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n',
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n',
               1,
           )
 
