@@ -5,7 +5,7 @@ on:
     branches: [cineseat-secure-builder]
     paths:
       - 'secure_payload/ALPHA24_BUILD_TRIGGER.txt'
-      - 'secure_payload/apply_alpha24_region_condition.py.gz.b64'
+      - 'secure_payload/apply_alpha24_region_condition.py.gz.b64.part*'
       - '.github/workflows/cineseat-alpha24-region-condition.yml'
 
 permissions:
@@ -40,8 +40,8 @@ jobs:
           cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
             | base64 --decode | gzip --decompress \
             > secure_payload/apply_alpha23_ui_cache.py
-          base64 --decode secure_payload/apply_alpha24_region_condition.py.gz.b64 \
-            | gzip --decompress \
+          cat secure_payload/apply_alpha24_region_condition.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
             > secure_payload/apply_alpha24_region_condition.py
           echo 'b83a89872db3221102f872a693eef1f64945a4c5676f9fce073a4df440299c93  secure_payload/apply_alpha24_region_condition.py' | sha256sum -c -
           python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
