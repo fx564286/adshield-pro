@@ -1,0 +1,123 @@
+name: Export Alpha22 Assembled Source
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/EXPORT_ALPHA22_SOURCE_TRIGGER.txt'
+      - '.github/workflows/export-alpha22-assembled-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct alpha22 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+
+      - name: Prepare encrypted source-export wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/export-public.pem <<'PEM'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAzs86KcI2ixYhC2kzp9TH
+          HBcTiLa4FHek1x+u16yB9RLOXHfCD2nl9RcArIucz9HgRsSmIhm7bYLSURnD3zkg
+          J1hf40CUytFcoQP4kXPDmEFqeJKOzGOV9NXLyMrQprxkTH7E2MYImIVoXQZYdaMm
+          WoYxbu8gCn0XL0WtALvXz9nNv1HSjRTgMKR5cMCyAE2ObyTVmWBIq4uCQSW0hun8
+          GLTWtgvHrHfQPP64q+X7N1ABmoy2oYc1LAh+hmvR9LY6QOBQF5OoiUm++hQ8KFEH
+          j3H7po7HUBQDUrrcBYsY0IQbmbP0QFUZBgchjuwOG6RbTMMzXl+4BfOT1mmocirh
+          MbWkG5eQ0azmJ+eBeOg/pNDUGOXg3hfA+zkoFM/e4cVk7KK7s/ghGeASiPuKyqh+
+          jMPqc9JFqs5PCni8BvEhFndWWC9FtFKMW9D5FyoxhSvOXNYg+WKzD5FjsFUCeJ4p
+          IMhzpUEmOiomAt0LKKROb6Cl+FWfO1ug49e0z14AoyEhAgMBAAE=
+          -----END PUBLIC KEY-----
+          PEM
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable home addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n',
+              1,
+          )
+          text_anchor = "text = source.read_text(encoding='utf-8')\n"
+          if text_anchor not in wrapper:
+              raise SystemExit('underlying script anchor missing')
+          export_patch = r'''text = text.replace(
+              '# Restore the encrypted foreground monitor and boot receiver.\n',
+              r'''mkdir -p export_source
+          tar -cJf export_source/alpha22-source.tar.xz -C "$SOURCE/payload" \
+            lib/home.dart lib/home_v3.dart lib/wizard_v4.dart lib/services.dart \
+            lib/app_controller.dart lib/models.dart test/wizard_runtime_test.dart
+          openssl rand -out export_source/source.aes.key 32
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+            -in export_source/alpha22-source.tar.xz \
+            -out export_source/alpha22-source.enc \
+            -pass file:export_source/source.aes.key
+          openssl pkeyutl -encrypt -pubin -inkey /tmp/export-public.pem \
+            -in export_source/source.aes.key \
+            -out export_source/source.key.enc \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+          sha256sum export_source/alpha22-source.enc export_source/source.key.enc \
+            > export_source/SHA256SUMS.txt
+          rm -f export_source/source.aes.key export_source/alpha22-source.tar.xz
+          trap - EXIT
+          rm -rf "$SOURCE" "$OVERLAY" "$NATIVE" "$BUILD"
+          exit 0
+
+          # Restore the encrypted foreground monitor and boot receiver.
+          ''',
+              1,
+          )
+          '''
+          wrapper = wrapper.replace(
+              text_anchor,
+              text_anchor + export_patch,
+              1,
+          )
+          Path('/tmp/export-alpha22-source.sh').write_text(wrapper, encoding='utf-8')
+          PY
+          chmod +x /tmp/export-alpha22-source.sh
+
+      - name: Restore runner-only RSA key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - name: Assemble and encrypt selected source
+        shell: bash
+        run: bash /tmp/export-alpha22-source.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: alpha22-assembled-source-encrypted
+          path: export_source/*
+          retention-days: 2
