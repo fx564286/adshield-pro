@@ -48,6 +48,22 @@ path = Path(sys.argv[1]) / 'lib/wizard_v4.dart'
 source = path.read_text(encoding='utf-8')
 changed = False
 
+old_fields = (
+    "  bool _filtersExpanded = false;\n"
+    "  bool _regionPanelExpanded = false;\n"
+    "  bool _distancePreparing = false;\n"
+)
+new_fields = (
+    "  bool _filtersExpanded = false;\n"
+    "  bool _regionPanelExpanded = false;\n"
+    "  final ExpansionTileController _regionExpansionController =\n"
+    "      ExpansionTileController();\n"
+    "  bool _distancePreparing = false;\n"
+)
+if old_fields in source:
+    source = source.replace(old_fields, new_fields, 1)
+    changed = True
+
 old_surface = (
     "    return Container(\n"
     "      key: const Key('region_filter_panel'),\n"
@@ -74,15 +90,28 @@ if old_surface in source:
     source = source.replace(old_surface, new_surface, 1)
     changed = True
 
+old_tile = (
+    "        child: ExpansionTile(\n"
+    "          key: const Key('region_filter_toggle'),\n"
+)
+new_tile = (
+    "        child: ExpansionTile(\n"
+    "          key: const Key('region_filter_toggle'),\n"
+    "          controller: _regionExpansionController,\n"
+)
+if old_tile in source:
+    source = source.replace(old_tile, new_tile, 1)
+    changed = True
+
 old_district = (
     "                      onSelected: (_) =>\n"
     "                          setState(() => _districtFilter = district),\n"
 )
 new_district = (
-    "                      onSelected: (_) => setState(() {\n"
-    "                        _districtFilter = district;\n"
-    "                        _regionPanelExpanded = false;\n"
-    "                      }),\n"
+    "                      onSelected: (_) {\n"
+    "                        setState(() => _districtFilter = district);\n"
+    "                        _regionExpansionController.collapse();\n"
+    "                      },\n"
 )
 if old_district in source:
     source = source.replace(old_district, new_district, 1)
@@ -90,7 +119,7 @@ if old_district in source:
 
 if changed:
     path.write_text(source, encoding='utf-8')
-    print('region accordion Material surface and auto-collapse applied')
+    print('region accordion Material surface and controller collapse applied')
 PYFIX
 '''
 if marker not in text:
