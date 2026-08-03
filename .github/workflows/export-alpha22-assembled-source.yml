@@ -1,4 +1,4 @@
-name: Export Alpha22 Assembled Source
+name: Export Alpha23 Assembled Source
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Reconstruct alpha22 patch
+      - name: Reconstruct alpha22 and alpha23 patches
         shell: bash
         run: |
           set -euo pipefail
@@ -31,8 +31,12 @@ jobs:
             secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
             | base64 --decode | gzip --decompress \
             > secure_payload/apply_alpha22_seat_ui_fix.py
+          cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha23_ui_cache.py
           python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
           python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+          python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
 
       - name: Prepare encrypted source-export wrapper
         shell: bash
@@ -40,15 +44,15 @@ jobs:
           set -euo pipefail
           cat > /tmp/export-public.pem <<'PEM'
           -----BEGIN PUBLIC KEY-----
-          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAzs86KcI2ixYhC2kzp9TH
-          HBcTiLa4FHek1x+u16yB9RLOXHfCD2nl9RcArIucz9HgRsSmIhm7bYLSURnD3zkg
-          J1hf40CUytFcoQP4kXPDmEFqeJKOzGOV9NXLyMrQprxkTH7E2MYImIVoXQZYdaMm
-          WoYxbu8gCn0XL0WtALvXz9nNv1HSjRTgMKR5cMCyAE2ObyTVmWBIq4uCQSW0hun8
-          GLTWtgvHrHfQPP64q+X7N1ABmoy2oYc1LAh+hmvR9LY6QOBQF5OoiUm++hQ8KFEH
-          j3H7po7HUBQDUrrcBYsY0IQbmbP0QFUZBgchjuwOG6RbTMMzXl+4BfOT1mmocirh
-          MbWkG5eQ0azmJ+eBeOg/pNDUGOXg3hfA+zkoFM/e4cVk7KK7s/ghGeASiPuKyqh+
-          jMPqc9JFqs5PCni8BvEhFndWWC9FtFKMW9D5FyoxhSvOXNYg+WKzD5FjsFUCeJ4p
-          IMhzpUEmOiomAt0LKKROb6Cl+FWfO1ug49e0z14AoyEhAgMBAAE=
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAv0bKl7/MBdVvD743JZUo
+          0sFaavb/iDA8jd0BBBEHBqOBDKFMc4TRv4h+272y/sEfyr9qWozEw34C7pIAI7i4
+          qXzIMUoUpsnG5YIMTZ/cVw7AjNwFbItGXpyNN3h+nSqOfQaXDaJW3Es4sPM/avao
+          YOKCBn0gWqdXQM8nIH3Fk7NeOQngc2+TUSGzxXyPwkZwFSld8TnpJZ4H7GKUFu5g
+          96eue+YD0eZmJOuuD1imymXCC2i1n30qfvtl5ZncDM8z37dunH8+RodsoAShFlME
+          Nv3Vbe/+3GowDMemWKiz3/HcW8KIWIX2EAue+pkdcfJh0Z/c37NWa9CJxTdNAiLy
+          9OC8CniBU60RFYmTSygG03F4BBodNpsEJBe7AkkOrXcDKsWlxTRh4kP+GyAqpuVG
+          w5touMOkdKT5VwirexzAZakVXp49gEytf8IhVrPAvkyqXX4nArdil6zqQ7xFAWrd
+          9JT6/SQFnDrDHFaWr/lEUtwwT+vjnH9LJ0qYIB0BYfgNAgMBAAE=
           -----END PUBLIC KEY-----
           PEM
           python3 - <<'PY'
@@ -63,7 +67,8 @@ jobs:
               addon_anchor,
               addon_anchor +
               'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
-              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n',
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n',
               1,
           )
 
@@ -72,22 +77,22 @@ jobs:
               raise SystemExit('underlying script anchor missing')
 
           export_shell = '''mkdir -p export_source
-          tar -cJf export_source/alpha22-source.tar.xz -C "$SOURCE/payload" \\
+          tar -cJf export_source/alpha23-source.tar.xz -C "$SOURCE/payload" \\
             lib/home.dart lib/home_v3.dart lib/wizard_v4.dart lib/services.dart \\
             lib/app_controller.dart lib/models.dart test/wizard_runtime_test.dart
           openssl rand -out export_source/source.aes.key 32
           openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \\
-            -in export_source/alpha22-source.tar.xz \\
-            -out export_source/alpha22-source.enc \\
+            -in export_source/alpha23-source.tar.xz \\
+            -out export_source/alpha23-source.enc \\
             -pass file:export_source/source.aes.key
           openssl pkeyutl -encrypt -pubin -inkey /tmp/export-public.pem \\
             -in export_source/source.aes.key \\
             -out export_source/source.key.enc \\
             -pkeyopt rsa_padding_mode:oaep \\
             -pkeyopt rsa_oaep_md:sha256
-          sha256sum export_source/alpha22-source.enc export_source/source.key.enc \\
+          sha256sum export_source/alpha23-source.enc export_source/source.key.enc \\
             > export_source/SHA256SUMS.txt
-          rm -f export_source/source.aes.key export_source/alpha22-source.tar.xz
+          rm -f export_source/source.aes.key export_source/alpha23-source.tar.xz
           trap - EXIT
           rm -rf "$SOURCE" "$OVERLAY" "$NATIVE" "$BUILD"
           exit 0
@@ -100,9 +105,9 @@ jobs:
               + repr(export_shell) + ", 1)\n"
           )
           wrapper = wrapper.replace(text_anchor, text_anchor + patch_code, 1)
-          Path('/tmp/export-alpha22-source.sh').write_text(wrapper, encoding='utf-8')
+          Path('/tmp/export-alpha23-source.sh').write_text(wrapper, encoding='utf-8')
           PY
-          chmod +x /tmp/export-alpha22-source.sh
+          chmod +x /tmp/export-alpha23-source.sh
 
       - name: Restore runner-only RSA key
         uses: actions/cache@v4
@@ -113,10 +118,10 @@ jobs:
 
       - name: Assemble and encrypt selected source
         shell: bash
-        run: bash /tmp/export-alpha22-source.sh
+        run: bash /tmp/export-alpha23-source.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: alpha22-assembled-source-encrypted
+          name: alpha23-assembled-source-encrypted
           path: export_source/*
           retention-days: 2
