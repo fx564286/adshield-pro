@@ -1,0 +1,99 @@
+name: Cineseat Alpha22 Fixed Sign
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA22_SIGN_TRIGGER.txt'
+      - '.github/workflows/cineseat-alpha22-fixed-sign.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify protected signing material is connected
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.CINESEAT_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.CINESEAT_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.CINESEAT_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_B64"
+          test -n "$STORE_PASSWORD"
+          test -n "$KEY_PASSWORD"
+          mkdir -p secure_runtime
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > secure_runtime/cineseat-release.jks
+          test -s secure_runtime/cineseat-release.jks
+
+      - name: Download verified alpha22 artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p alpha22
+          curl --fail --location \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/artifacts/8853746261/zip" \
+            -o /tmp/alpha22.zip
+          unzip -q /tmp/alpha22.zip -d alpha22
+          test -s alpha22/cineseat-0.2.1-alpha.22-VALIDATION.apk
+
+      - name: Align, fixed-sign and verify
+        shell: bash
+        env:
+          STORE_PASSWORD: ${{ secrets.CINESEAT_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.CINESEAT_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x alpha22/zipalign
+          java -jar alpha22/apksigner.jar sign --help >/dev/null
+          alpha22/zipalign -f -p 4 \
+            alpha22/cineseat-0.2.1-alpha.22-VALIDATION.apk \
+            alpha22/cineseat-0.2.1-alpha.22-aligned.apk
+          java -jar alpha22/apksigner.jar sign \
+            --ks secure_runtime/cineseat-release.jks \
+            --ks-key-alias cineseat-release \
+            --ks-pass "pass:$STORE_PASSWORD" \
+            --key-pass "pass:$KEY_PASSWORD" \
+            --v1-signing-enabled false \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out alpha22/cineseat-0.2.1-alpha.22-fixed-signed.apk \
+            alpha22/cineseat-0.2.1-alpha.22-aligned.apk
+          java -jar alpha22/apksigner.jar verify --verbose --print-certs \
+            alpha22/cineseat-0.2.1-alpha.22-fixed-signed.apk \
+            > alpha22/FIXED-SIGNATURE.txt
+          grep -qi 'Verified using v2 scheme.*true' alpha22/FIXED-SIGNATURE.txt
+          grep -qi 'Verified using v3 scheme.*true' alpha22/FIXED-SIGNATURE.txt
+          grep -qi 'ce395c3785cf4fbd959a5e2f9e5beb3306ccdb82f19a4daff89fd634dcfd69f5' \
+            alpha22/FIXED-SIGNATURE.txt
+          sha256sum alpha22/cineseat-0.2.1-alpha.22-fixed-signed.apk \
+            > alpha22/FIXED-SHA256.txt
+          unzip -tq alpha22/cineseat-0.2.1-alpha.22-fixed-signed.apk
+          rm -f secure_runtime/cineseat-release.jks alpha22/cineseat-0.2.1-alpha.22-aligned.apk
+
+      - name: Upload fixed-signed alpha22
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha22-fixed-signed-${{ github.run_number }}
+          path: |
+            alpha22/cineseat-0.2.1-alpha.22-fixed-signed.apk
+            alpha22/FIXED-SIGNATURE.txt
+            alpha22/FIXED-SHA256.txt
+            alpha22/APK-PACKAGE-INFO.txt
+            alpha22/APK-MANIFEST.txt
+            alpha22/APK-PERMISSIONS.txt
+            alpha22/BUILD_REPORT.txt
+          if-no-files-found: error
+          retention-days: 7
