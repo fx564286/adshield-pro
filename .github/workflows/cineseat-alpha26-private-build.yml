@@ -1,108 +1,109 @@
-name: Temporary Cineseat Alpha26 Private Build
+name: Temporary Encrypted Cineseat Alpha26 Build
 
 on:
   pull_request:
     branches: [main]
     paths:
       - '.github/workflows/cineseat-alpha26-private-build.yml'
+      - 'cineseat_encrypted_source.b64'
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: temporary-cineseat-alpha26-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   FLUTTER_VERSION: '3.44.6'
-  APP_VERSION_NAME: '0.2.1-alpha.26'
-  APP_VERSION_CODE: '46'
 
 jobs:
-  build:
+  encrypted-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      PRIVATE_REPO_TOKEN: ${{ secrets.CINESEAT_REPO_TOKEN || secrets.GH_PAT || secrets.PAT || secrets.REPO_PAT || secrets.PRIVATE_REPO_TOKEN }}
-      CINESEAT_KEYSTORE_B64: ${{ secrets.CINESEAT_KEYSTORE_B64 }}
-      CINESEAT_STORE_PASSWORD: ${{ secrets.CINESEAT_STORE_PASSWORD }}
-      CINESEAT_KEY_ALIAS: ${{ secrets.CINESEAT_KEY_ALIAS }}
-      CINESEAT_KEY_PASSWORD: ${{ secrets.CINESEAT_KEY_PASSWORD }}
-      CINESEAT_CERT_SHA256: CE395C3785CF4FBD959A5E2F9E5BEB3306CCDB82F19A4DAFF89FD634DCFD69F5
-
+    timeout-minutes: 45
     steps:
-      - name: Confirm private repository credential exists
+      - name: Checkout encrypted build carrier only
+        uses: actions/checkout@v4
+
+      - name: Restore PR-scoped decryption key
+        id: key-cache
+        uses: actions/cache@v4
+        with:
+          path: .cineseat-key
+          key: cineseat-alpha26-pr6-rsa-v1
+
+      - name: Generate ephemeral RSA certificate
+        if: steps.key-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          if [[ -z "$PRIVATE_REPO_TOKEN" ]]; then
-            echo 'No cross-repository token is configured in this repository.' >&2
-            exit 78
+          set -euo pipefail
+          mkdir -p .cineseat-key
+          openssl req -x509 -newkey rsa:4096 -sha256 -nodes \
+            -keyout .cineseat-key/private.pem \
+            -out .cineseat-key/cert.pem \
+            -days 7 \
+            -subj '/CN=CineseatAlpha26Ephemeral/'
+          chmod 600 .cineseat-key/private.pem
+
+      - name: Detect encrypted source
+        id: source
+        shell: bash
+        run: |
+          if [[ -s cineseat_encrypted_source.b64 ]]; then
+            echo 'present=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'present=false' >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Checkout private Cineseat source without publishing it
-        uses: actions/checkout@v4
+      - name: Publish encryption certificate
+        if: steps.source.outputs.present != 'true'
+        uses: actions/upload-artifact@v4
         with:
-          repository: fx564286/-
-          ref: main
-          token: ${{ env.PRIVATE_REPO_TOKEN }}
-          path: cineseat-private
-          persist-credentials: false
+          name: cineseat-alpha26-encryption-certificate
+          path: .cineseat-key/cert.pem
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Set up Java 17
+        if: steps.source.outputs.present == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Flutter
+        if: steps.source.outputs.present == 'true'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      - name: Prepare project
-        working-directory: cineseat-private
+      - name: Decrypt private source in runner memory
+        if: steps.source.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          export GITHUB_REF='refs/heads/cineseat-alpha26-private-runner'
-          export GITHUB_ENV="$RUNNER_TEMP/cineseat-env"
-          : > "$GITHUB_ENV"
-          bash cinema_alpha_payload/ci/build_alpha26.sh prepare
-          bash cinema_alpha_payload/configure_signing.sh build_app
-          cat "$GITHUB_ENV" >> "$GITHUB_ENV"
+          base64 --decode cineseat_encrypted_source.b64 > "$RUNNER_TEMP/cineseat-source.cms"
+          openssl cms -decrypt -binary -inform DER \
+            -in "$RUNNER_TEMP/cineseat-source.cms" \
+            -recip .cineseat-key/cert.pem \
+            -inkey .cineseat-key/private.pem \
+            -out "$RUNNER_TEMP/cineseat-source.tar.gz"
+          mkdir -p "$RUNNER_TEMP/cineseat-source"
+          tar -xzf "$RUNNER_TEMP/cineseat-source.tar.gz" \
+            -C "$RUNNER_TEMP/cineseat-source"
 
-      - name: Apply final compile fixes, analyze, test and build
-        working-directory: cineseat-private
+      - name: Build and verify validation APK
+        if: steps.source.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          export GITHUB_REF='refs/heads/cineseat-alpha26-private-runner'
-          export GITHUB_ENV="$RUNNER_TEMP/cineseat-env"
-          if [[ -f "$GITHUB_ENV" ]]; then
-            set -a
-            source "$GITHUB_ENV"
-            set +a
-          fi
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('cinema_alpha_payload/ci/build_alpha26.sh')
-          text = path.read_text(encoding='utf-8')
-          marker = '    apply_alpha26_region_cgv_flow.py\n'
-          replacement = marker + '    apply_alpha26_compile_fix.py\n'
-          if replacement not in text:
-              if marker not in text:
-                  raise SystemExit('alpha26 patch marker missing')
-              path.write_text(text.replace(marker, replacement, 1), encoding='utf-8')
-          PY
-          bash cinema_alpha_payload/ci/build_alpha26.sh build
+          cd "$RUNNER_TEMP/cineseat-source"
+          bash build.sh
 
       - name: Upload APK and verification
+        if: steps.source.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: temporary-cineseat-alpha26-${{ github.run_number }}
-          path: cineseat-private/dist/*
+          path: ${{ runner.temp }}/cineseat-source/dist/*
           if-no-files-found: error
           retention-days: 1
