@@ -89,6 +89,17 @@ jobs:
           test -s "$RUNNER_TEMP/cineseat-source/build.sh"
           test -s "$RUNNER_TEMP/cineseat-source/lib/main.dart"
 
+      - name: Inspect decrypted source API surface
+        if: steps.source.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '--- source files ---'
+          find "$RUNNER_TEMP/cineseat-source" -maxdepth 2 -type f -printf '%P\n' | sort
+          echo '--- class and controller signatures ---'
+          grep -R -n -E '^(class|enum) |Future<void> (add|remove|toggle|clear|replace)|List<WatchItem>|WatchStore|BackgroundMonitor|class AppShell|class SettingsPage' \
+            "$RUNNER_TEMP/cineseat-source/lib" || true
+
       - name: Reconstruct and apply alpha27 recovery patch
         if: steps.source.outputs.present == 'true'
         shell: bash
@@ -128,6 +139,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/alpha27-diagnostics"
           if [[ -d "$RUNNER_TEMP/cineseat-source" ]]; then
+            find "$RUNNER_TEMP/cineseat-source" -maxdepth 2 -type f -printf '%P\n' | sort > "$RUNNER_TEMP/alpha27-diagnostics/source-files.txt"
             grep -R -n -E "label: '감시'|label: '알림'|label: '설정'|region_theater_picker|cineseat_theater_cache_v2|alpha.27" \
               "$RUNNER_TEMP/cineseat-source/lib" \
               > "$RUNNER_TEMP/alpha27-diagnostics/guard-markers.txt" || true
