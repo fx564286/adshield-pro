@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/cineseat-alpha26-private-build.yml'
-      - 'cineseat_encrypted_source.b64'
+      - 'cineseat_source_chunks/**'
   workflow_dispatch:
 
 permissions:
@@ -46,9 +46,12 @@ jobs:
         id: source
         shell: bash
         run: |
-          if [[ -s cineseat_encrypted_source.b64 ]]; then
+          set -euo pipefail
+          count=$(find cineseat_source_chunks -maxdepth 1 -type f -name 'chunk_*' 2>/dev/null | wc -l)
+          if [[ "$count" -eq 7 ]]; then
             echo 'present=true' >> "$GITHUB_OUTPUT"
           else
+            echo "Expected 7 encrypted chunks, found $count." >&2
             echo 'present=false' >> "$GITHUB_OUTPUT"
           fi
 
@@ -81,7 +84,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode cineseat_encrypted_source.b64 > "$RUNNER_TEMP/cineseat-source.cms"
+          cat cineseat_source_chunks/chunk_* > "$RUNNER_TEMP/cineseat-source.b64"
+          base64 --decode "$RUNNER_TEMP/cineseat-source.b64" > "$RUNNER_TEMP/cineseat-source.cms"
           openssl cms -decrypt -binary -inform DER \
             -in "$RUNNER_TEMP/cineseat-source.cms" \
             -recip .cineseat-key/cert.pem \
@@ -90,6 +94,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/cineseat-source"
           tar -xzf "$RUNNER_TEMP/cineseat-source.tar.gz" \
             -C "$RUNNER_TEMP/cineseat-source"
+          test -s "$RUNNER_TEMP/cineseat-source/build.sh"
+          test -s "$RUNNER_TEMP/cineseat-source/lib/main.dart"
 
       - name: Build and verify validation APK
         if: steps.source.outputs.present == 'true'
@@ -97,6 +103,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/cineseat-source"
+          chmod +x build.sh
           bash build.sh
 
       - name: Upload APK and verification
