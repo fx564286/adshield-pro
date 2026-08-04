@@ -111,9 +111,10 @@ jobs:
         run: |
           set -euo pipefail
           test -s exported-alpha28-source.tar.gz
-          tar -tzf exported-alpha28-source.tar.gz | grep -q 'lib/wizard_v4.dart'
-          tar -tzf exported-alpha28-source.tar.gz | grep -q 'lib/cinema_api.dart'
-          tar -tzf exported-alpha28-source.tar.gz | grep -q 'lib/official_seat_webview.dart'
+          tar -tzf exported-alpha28-source.tar.gz > /tmp/alpha28-source-files.txt
+          grep -q 'lib/wizard_v4.dart' /tmp/alpha28-source-files.txt
+          grep -q 'lib/services.dart' /tmp/alpha28-source-files.txt
+          grep -q 'lib/official_seat_web.dart' /tmp/alpha28-source-files.txt
 
       - name: Upload assembled source
         uses: actions/upload-artifact@v4
