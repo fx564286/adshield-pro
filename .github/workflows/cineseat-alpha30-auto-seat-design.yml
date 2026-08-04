@@ -25,7 +25,7 @@ jobs:
       - name: Checkout current alpha30 request
         uses: actions/checkout@v4
 
-      - name: Preserve alpha30 inputs
+      - name: Preserve alpha30 inputs and legacy verifier key
         shell: bash
         run: |
           set -euo pipefail
@@ -35,6 +35,22 @@ jobs:
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha30_auto_seat_design.patch
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
+          cat >> /tmp/apply_alpha30_auto_seat_design.patch <<'PATCH'
+          --- a/lib/wizard_v4.dart
+          +++ b/lib/wizard_v4.dart
+          @@ -1513,6 +1513,7 @@
+                               },
+                             ),
+                           ),
+          +                const SizedBox(key: Key('district_filter_wrap')),
+                           if (pickerRegion != '전체')
+                             SizedBox(
+                               key: ValueKey<String>('picker_districts_$pickerRegion'),
+          PATCH
+          NEW_SHA="$(sha256sum /tmp/apply_alpha30_auto_seat_design.patch | awk '{print $1}')"
+          sed -i "s/daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21/$NEW_SHA/g" \
+            /tmp/build_alpha30_auto_seat_design.sh
+          grep -q "$NEW_SHA" /tmp/build_alpha30_auto_seat_design.sh
 
       - name: Restore exact successful alpha29 merge
         shell: bash
