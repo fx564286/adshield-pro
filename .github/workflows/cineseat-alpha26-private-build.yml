@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/cineseat-alpha26-private-build.yml'
       - 'cineseat_source_chunks/**'
-      - 'cineseat_patch_chunks/**'
+      - 'alpha27_recovery/**'
   workflow_dispatch:
 
 permissions:
@@ -42,14 +42,6 @@ jobs:
             -days 7 \
             -subj '/CN=CineseatAlpha26Ephemeral/'
           chmod 600 .cineseat-key/private.pem
-
-      - name: Publish encryption certificate
-        uses: actions/upload-artifact@v4
-        with:
-          name: cineseat-alpha27-encryption-certificate-${{ github.run_number }}
-          path: .cineseat-key/cert.pem
-          if-no-files-found: error
-          retention-days: 1
 
       - name: Detect encrypted source
         id: source
@@ -97,28 +89,16 @@ jobs:
           test -s "$RUNNER_TEMP/cineseat-source/build.sh"
           test -s "$RUNNER_TEMP/cineseat-source/lib/main.dart"
 
-      - name: Apply encrypted alpha27 recovery patch
+      - name: Reconstruct and apply alpha27 recovery patch
         if: steps.source.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          count=$(find cineseat_patch_chunks -maxdepth 1 -type f -name 'chunk_*' 2>/dev/null | wc -l)
-          if [[ "$count" -eq 0 ]]; then
-            echo 'No alpha27 patch yet; certificate publication run only.'
-            exit 0
-          fi
-          cat cineseat_patch_chunks/chunk_* > "$RUNNER_TEMP/cineseat-alpha27-patch.b64"
-          base64 --decode "$RUNNER_TEMP/cineseat-alpha27-patch.b64" > "$RUNNER_TEMP/cineseat-alpha27-patch.cms"
-          openssl cms -decrypt -binary -inform DER \
-            -in "$RUNNER_TEMP/cineseat-alpha27-patch.cms" \
-            -recip .cineseat-key/cert.pem \
-            -inkey .cineseat-key/private.pem \
-            -out "$RUNNER_TEMP/cineseat-alpha27-patch.tar.gz"
-          tar -xzf "$RUNNER_TEMP/cineseat-alpha27-patch.tar.gz" \
-            -C "$RUNNER_TEMP/cineseat-source"
-          test -s "$RUNNER_TEMP/cineseat-source/apply_alpha27.py"
-          python3 "$RUNNER_TEMP/cineseat-source/apply_alpha27.py" \
-            "$RUNNER_TEMP/cineseat-source"
+          test "$(find alpha27_recovery -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 7
+          cat alpha27_recovery/chunk_* > "$RUNNER_TEMP/apply-alpha27.b64"
+          base64 --decode "$RUNNER_TEMP/apply-alpha27.b64" > "$RUNNER_TEMP/apply_alpha27.py"
+          python3 -m py_compile "$RUNNER_TEMP/apply_alpha27.py"
+          python3 "$RUNNER_TEMP/apply_alpha27.py" "$RUNNER_TEMP/cineseat-source"
 
       - name: Build and verify validation APK
         if: steps.source.outputs.present == 'true'
@@ -138,6 +118,27 @@ jobs:
           PY
           chmod +x build.sh
           bash build.sh
+
+      - name: Upload failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/alpha27-diagnostics"
+          if [[ -d "$RUNNER_TEMP/cineseat-source" ]]; then
+            grep -R -n -E "label: '감시'|label: '알림'|label: '설정'|region_theater_picker|cineseat_theater_cache_v2|alpha.27" \
+              "$RUNNER_TEMP/cineseat-source/lib" \
+              > "$RUNNER_TEMP/alpha27-diagnostics/guard-markers.txt" || true
+          fi
+
+      - name: Upload failure diagnostics artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: temporary-cineseat-alpha27-failure-${{ github.run_number }}
+          path: ${{ runner.temp }}/alpha27-diagnostics/*
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Upload APK and verification
         if: steps.source.outputs.present == 'true'
