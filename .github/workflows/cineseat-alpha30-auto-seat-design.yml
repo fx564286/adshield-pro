@@ -45,7 +45,7 @@ jobs:
               raise SystemExit('alpha30 wrapper chmod anchor missing')
           source = source.replace(
               anchor,
-              anchor + 'sed -i "/Key(\\x27district_filter_wrap\\x27)/d" /tmp/run_alpha30_stable.sh\n',
+              anchor + "sed -i '/district_filter_wrap/d' /tmp/run_alpha30_stable.sh\n",
               1,
           )
           path.write_text(source, encoding='utf-8')
