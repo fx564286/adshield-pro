@@ -6,6 +6,7 @@ on:
     paths:
       - 'secure_payload/ALPHA27_BUILD_TRIGGER.txt'
       - 'secure_payload/apply_alpha27_picker_cgv.py.gz.b64.part*'
+      - 'secure_payload/apply_alpha27_legacy_verifier_compat.py'
       - '.github/workflows/cineseat-alpha27-picker-cgv.yml'
 
 permissions:
@@ -58,6 +59,7 @@ jobs:
           python3 -m py_compile secure_payload/apply_alpha26_unified_filters_seat_icon.py
           python3 -m py_compile secure_payload/apply_alpha26_key_compat.py
           python3 -m py_compile secure_payload/apply_alpha27_picker_cgv.py
+          python3 -m py_compile secure_payload/apply_alpha27_legacy_verifier_compat.py
 
       - name: Prepare alpha27 stable builder wrapper
         shell: bash
@@ -91,6 +93,7 @@ jobs:
               'PYFIX\n' +
               'python3 secure_payload/apply_alpha26_key_compat.py "$SOURCE/payload"\n' +
               'python3 secure_payload/apply_alpha27_picker_cgv.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha27_legacy_verifier_compat.py "$SOURCE/payload"\n' +
               "'''",
               1,
           )
