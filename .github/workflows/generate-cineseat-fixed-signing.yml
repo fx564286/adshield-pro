@@ -1,0 +1,93 @@
+name: Generate Cineseat Fixed Signing Key
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/GENERATE_CINESEAT_SIGNING_TRIGGER.txt'
+      - '.github/workflows/generate-cineseat-fixed-signing.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore encryption private key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate and encrypt fixed APK signing key
+        shell: bash
+        env:
+          STORE_PASSWORD: cineseat-fixed-2026
+          KEY_PASSWORD: cineseat-fixed-2026
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/cineseat-signing
+          keytool -genkeypair \
+            -keystore /tmp/cineseat-signing/cineseat-release.p12 \
+            -storetype PKCS12 \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -alias cineseat \
+            -keyalg RSA \
+            -keysize 3072 \
+            -sigalg SHA256withRSA \
+            -validity 10000 \
+            -dname 'CN=Cineseat Release, O=fx564286, C=KR'
+
+          openssl rand -out /tmp/cineseat-signing/keystore.aes.key 32
+          openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 \
+            -in /tmp/cineseat-signing/cineseat-release.p12 \
+            -out /tmp/cineseat-signing/cineseat-release.p12.enc \
+            -pass file:/tmp/cineseat-signing/keystore.aes.key
+          openssl pkey -in secure_runtime/private.pem -pubout \
+            -out /tmp/cineseat-signing/encryption-public.pem
+          openssl pkeyutl -encrypt -pubin \
+            -inkey /tmp/cineseat-signing/encryption-public.pem \
+            -in /tmp/cineseat-signing/keystore.aes.key \
+            -out /tmp/cineseat-signing/keystore.aes.key.enc \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+
+          base64 -w 0 /tmp/cineseat-signing/cineseat-release.p12.enc \
+            > /tmp/cineseat-signing/cineseat-release.p12.enc.b64
+          base64 -w 0 /tmp/cineseat-signing/keystore.aes.key.enc \
+            > /tmp/cineseat-signing/keystore.aes.key.enc.b64
+          keytool -list -v \
+            -keystore /tmp/cineseat-signing/cineseat-release.p12 \
+            -storetype PKCS12 \
+            -storepass "$STORE_PASSWORD" \
+            -alias cineseat \
+            > /tmp/cineseat-signing/SIGNING_CERT.txt
+          sha256sum \
+            /tmp/cineseat-signing/cineseat-release.p12.enc \
+            /tmp/cineseat-signing/keystore.aes.key.enc \
+            > /tmp/cineseat-signing/ENCRYPTED_SHA256SUMS.txt
+          rm -f \
+            /tmp/cineseat-signing/cineseat-release.p12 \
+            /tmp/cineseat-signing/keystore.aes.key \
+            /tmp/cineseat-signing/encryption-public.pem \
+            /tmp/cineseat-signing/cineseat-release.p12.enc \
+            /tmp/cineseat-signing/keystore.aes.key.enc
+
+      - name: Upload encrypted fixed signing material
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-fixed-signing-encrypted
+          path: /tmp/cineseat-signing/*
+          if-no-files-found: error
+          retention-days: 2
