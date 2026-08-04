@@ -103,6 +103,16 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/cineseat-source"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('build.sh')
+          text = path.read_text(encoding='utf-8')
+          marker = 'rm -rf "$APP/lib"\n'
+          replacement = 'rm -rf "$APP/lib" "$APP/test"\n'
+          if marker not in text:
+              raise SystemExit('Flutter template test-removal marker not found')
+          path.write_text(text.replace(marker, replacement, 1), encoding='utf-8')
+          PY
           chmod +x build.sh
           bash build.sh
 
