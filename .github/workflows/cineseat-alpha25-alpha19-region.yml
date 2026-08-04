@@ -43,7 +43,7 @@ jobs:
           cat secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part* \
             | base64 --decode | gzip --decompress \
             > secure_payload/apply_alpha25_alpha19_region_condition.py
-          echo '880343e9c1ed001c0c79aae3273fbac63fcf9996e8f165149d1ff939aaca44e0  secure_payload/apply_alpha25_alpha19_region_condition.py' | sha256sum -c -
+          echo '28901ab270d253693ef69d93ed11a92d87d98f6057528eb0342da914c655ec3b  secure_payload/apply_alpha25_alpha19_region_condition.py' | sha256sum -c -
           python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
           python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
           python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
