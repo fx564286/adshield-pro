@@ -1,0 +1,149 @@
+name: Cineseat Alpha31 Unified Picker Probe
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA31_BUILD_TRIGGER.txt'
+      - 'secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64'
+      - '.github/workflows/cineseat-alpha31-unified-picker-probe.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha31-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout current alpha31 request
+        uses: actions/checkout@v4
+
+      - name: Preserve and prepare alpha31 inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp secure_payload/build_alpha30_auto_seat_design.sh /tmp/build_alpha31_unified_picker_probe.sh
+          chmod +x /tmp/build_alpha31_unified_picker_probe.sh
+          cat secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha30_auto_seat_design.patch
+          cat secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64 \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha31_unified_picker_probe.patch
+          echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
+          echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/build_alpha31_unified_picker_probe.sh')
+          source = path.read_text(encoding='utf-8')
+
+          preamble = 'PATCH30="/tmp/apply_alpha30_auto_seat_design.patch"\nDIST='
+          if preamble not in source:
+              raise SystemExit('alpha30 patch preamble missing')
+          source = source.replace(
+              preamble,
+              'PATCH30="/tmp/apply_alpha30_auto_seat_design.patch"\n'
+              'PATCH31="/tmp/apply_alpha31_unified_picker_probe.patch"\nDIST=',
+              1,
+          )
+
+          verify = (
+              'test -s "$PATCH30"\n'
+              "echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -\n"
+          )
+          if verify not in source:
+              raise SystemExit('alpha30 verification anchor missing')
+          source = source.replace(
+              verify,
+              verify
+              + 'test -s "$PATCH31"\n'
+              + "echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -\n",
+              1,
+          )
+
+          patch30_line = (
+              "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha30_auto_seat_design.patch)\\n' +\n"
+          )
+          if patch30_line not in source:
+              raise SystemExit('alpha30 application anchor missing')
+          source = source.replace(
+              patch30_line,
+              patch30_line
+              + "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha31_unified_picker_probe.patch)\\n' +\n"
+              + "    'grep -q \"지역·영화관 통합 선택\" \"$SOURCE/payload/lib/wizard_v4.dart\"\\n' +\n"
+              + "    'grep -q \"opacity: 0\" \"$SOURCE/payload/lib/official_seat_web.dart\"\\n' +\n"
+              + "    '! grep -q \"final values = _filteredTheaters\" \"$SOURCE/payload/lib/wizard_v4.dart\"\\n' +\n",
+              1,
+          )
+
+          source = source.replace('0.2.1-alpha.30', '0.2.1-alpha.31')
+          source = source.replace('version: 0.2.1-alpha.31+50', 'version: 0.2.1-alpha.31+51')
+          source = source.replace('--build-number=50', '--build-number=51')
+          source = source.replace("versionCode='50'", "versionCode='51'")
+          source = source.replace('alpha30-fixed.apk', 'alpha31-fixed.apk')
+          source = source.replace('run_alpha30_stable', 'run_alpha31_stable')
+          source = source.replace('build_alpha30_overlay', 'build_alpha31_overlay')
+          source = source.replace('alpha30 version marker', 'alpha31 version marker')
+          source = source.replace(
+              'fixed alpha27 signing certificate retained for overwrite installation over alpha29',
+              'fixed signing certificate retained for overwrite installation over alpha30',
+          )
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Restore exact successful alpha29 merge and update legacy verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          git checkout --force 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          test "$(git rev-parse HEAD)" = '612f0604d9b23fbd4ce0da7e1a726f2e9e63326b'
+          grep -q 'district_filter_wrap' secure_payload/build_alpha21_overlay_public.sh
+          sed -i '/district_filter_wrap/d' secure_payload/build_alpha21_overlay_public.sh
+          ! grep -q 'district_filter_wrap' secure_payload/build_alpha21_overlay_public.sh
+
+      - name: Restore source and signing decryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Build, test, sign and verify alpha31
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/build_alpha31_unified_picker_probe.sh
+          cat >> dist/BUILD_REPORT.txt <<'REPORT'
+          - theater selection, search, chain, region, district and sorting now use one unified picker
+          - duplicate theater list and duplicate main-screen filter controls were removed from the first step
+          - automatic official-seat WebView remains mounted but occupies zero layout height and paints fully transparent
+          - the horizontal black PlatformView artifact above the loading card is removed
+          - CGV and Megabox automatic non-member seat probing remains enabled
+          REPORT
+
+      - name: Upload alpha31 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha31-unified-picker-probe-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
