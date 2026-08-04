@@ -65,15 +65,20 @@ jobs:
               1,
           )
 
-          text_anchor = "text = source.read_text(encoding='utf-8')\n"
-          if text_anchor not in wrapper:
-              raise SystemExit('underlying builder text anchor missing')
-          export_code = (
-              "text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.25')\n"
-              "text = text.replace(\\\"# Restore the encrypted foreground monitor and boot receiver.\\n\\\", "
-              "\\\"rm -rf exported_source\\nmkdir -p exported_source\\ncp -R \\\"$SOURCE/payload/lib\\\" exported_source/lib\\ncp -R \\\"$SOURCE/payload/test\\\" exported_source/test\\ncp \\\"$SOURCE/payload/app_icon.png\\\" exported_source/app_icon.png\\nexit 0\\n\\n# Restore the encrypted foreground monitor and boot receiver.\\n\\\", 1)\n"
+          after_fix_anchor = "PYFIX\n'''\n"
+          if after_fix_anchor not in wrapper:
+              raise SystemExit('region polish completion anchor missing')
+          export_block = (
+              'PYFIX\n'
+              'rm -rf exported_source\n'
+              'mkdir -p exported_source\n'
+              'cp -R "$SOURCE/payload/lib" exported_source/lib\n'
+              'cp -R "$SOURCE/payload/test" exported_source/test\n'
+              'cp "$SOURCE/payload/app_icon.png" exported_source/app_icon.png\n'
+              'exit 0\n'
+              "'''\n"
           )
-          wrapper = wrapper.replace(text_anchor, text_anchor + export_code, 1)
+          wrapper = wrapper.replace(after_fix_anchor, export_block, 1)
           Path('/tmp/run_alpha25_source_export.sh').write_text(wrapper, encoding='utf-8')
           PY
           chmod +x /tmp/run_alpha25_source_export.sh
