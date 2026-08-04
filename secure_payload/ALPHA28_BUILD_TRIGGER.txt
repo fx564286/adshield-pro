@@ -1,2 +1,2 @@
-Build Cineseat 0.2.1-alpha.28 with district picker, merged preferred adjacent condition, and CGV/Megabox seat reliability fixes.
-Triggered: 2026-08-05T00:04:00+09:00
+Build Cineseat 0.2.1-alpha.28 with combined adjacent-zone monitoring, second-level regions, accurate counts, and CGV/Megabox seat fixes.
+Triggered: 2026-08-05T00:24:00+09:00
