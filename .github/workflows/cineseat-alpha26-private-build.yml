@@ -5,8 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/cineseat-alpha26-private-build.yml'
-      - 'cineseat_source_chunks/**'
-      - 'alpha27_recovery/**'
+      - 'alpha27_final_source/**'
   workflow_dispatch:
 
 permissions:
@@ -24,111 +23,81 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Restore PR-scoped decryption key
-        id: key-cache
         uses: actions/cache@v4
         with:
           path: .cineseat-key
           key: cineseat-alpha26-pr6-rsa-v1
+          fail-on-cache-miss: true
 
-      - name: Generate ephemeral RSA certificate
-        if: steps.key-cache.outputs.cache-hit != 'true'
+      - name: Validate encrypted alpha27 source carrier
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .cineseat-key
-          openssl req -x509 -newkey rsa:4096 -sha256 -nodes \
-            -keyout .cineseat-key/private.pem \
-            -out .cineseat-key/cert.pem \
-            -days 7 \
-            -subj '/CN=CineseatAlpha26Ephemeral/'
-          chmod 600 .cineseat-key/private.pem
-
-      - name: Detect encrypted source
-        id: source
-        shell: bash
-        run: |
-          set -euo pipefail
-          count=$(find cineseat_source_chunks -maxdepth 1 -type f -name 'chunk_*' 2>/dev/null | wc -l)
-          if [[ "$count" -eq 7 ]]; then
-            echo 'present=true' >> "$GITHUB_OUTPUT"
-          else
-            echo "Expected 7 encrypted chunks, found $count." >&2
-            echo 'present=false' >> "$GITHUB_OUTPUT"
-          fi
+          test "$(find alpha27_final_source -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 5
+          cat alpha27_final_source/chunk_* > "$RUNNER_TEMP/alpha27-source.b64"
+          echo "ebca1dffe9e225dcf146e0189a84c4c82f3ea343d55bfbdef2c5cfaae8850799  $RUNNER_TEMP/alpha27-source.b64" | sha256sum -c -
+          base64 --decode "$RUNNER_TEMP/alpha27-source.b64" > "$RUNNER_TEMP/alpha27-source.cms"
+          echo "64f369bdd37dd20d5c7fcac0550fb890ccf5536854a8dc7bcb291cf08fcb6c5a  $RUNNER_TEMP/alpha27-source.cms" | sha256sum -c -
 
       - name: Set up Java 17
-        if: steps.source.outputs.present == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Flutter
-        if: steps.source.outputs.present == 'true'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      - name: Decrypt private source in runner memory
-        if: steps.source.outputs.present == 'true'
+      - name: Decrypt repaired alpha27 source in runner memory
         shell: bash
         run: |
           set -euo pipefail
-          cat cineseat_source_chunks/chunk_* > "$RUNNER_TEMP/cineseat-source.b64"
-          base64 --decode "$RUNNER_TEMP/cineseat-source.b64" > "$RUNNER_TEMP/cineseat-source.cms"
+          test -s .cineseat-key/private.pem
+          test -s .cineseat-key/cert.pem
           openssl cms -decrypt -binary -inform DER \
-            -in "$RUNNER_TEMP/cineseat-source.cms" \
+            -in "$RUNNER_TEMP/alpha27-source.cms" \
             -recip .cineseat-key/cert.pem \
             -inkey .cineseat-key/private.pem \
-            -out "$RUNNER_TEMP/cineseat-source.tar.gz"
-          mkdir -p "$RUNNER_TEMP/cineseat-source"
-          tar -xzf "$RUNNER_TEMP/cineseat-source.tar.gz" \
-            -C "$RUNNER_TEMP/cineseat-source"
-          test -s "$RUNNER_TEMP/cineseat-source/build.sh"
-          test -s "$RUNNER_TEMP/cineseat-source/lib/main.dart"
+            -out "$RUNNER_TEMP/alpha27-source.tar.gz"
+          echo "ee5473624772e23deda304bc7680d84fa3d671ed5331ce20956860286e9b394f  $RUNNER_TEMP/alpha27-source.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/cineseat-alpha27"
+          tar -xzf "$RUNNER_TEMP/alpha27-source.tar.gz" -C "$RUNNER_TEMP/cineseat-alpha27"
+          test -s "$RUNNER_TEMP/cineseat-alpha27/build.sh"
+          test -s "$RUNNER_TEMP/cineseat-alpha27/lib/main.dart"
+          test -s "$RUNNER_TEMP/cineseat-alpha27/app_icon.png"
 
-      - name: Inspect decrypted source API surface
-        if: steps.source.outputs.present == 'true'
+      - name: Verify requested alpha27 feature guards
         shell: bash
         run: |
           set -euo pipefail
-          echo '--- source files ---'
-          find "$RUNNER_TEMP/cineseat-source" -maxdepth 2 -type f -printf '%P\n' | sort
-          echo '--- class and controller signatures ---'
-          grep -R -n -E '^(class|enum) |Future<void> (add|remove|toggle|clear|replace)|List<WatchItem>|WatchStore|BackgroundMonitor|class AppShell|class SettingsPage' \
-            "$RUNNER_TEMP/cineseat-source/lib" || true
-
-      - name: Reconstruct and apply alpha27 recovery patch
-        if: steps.source.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(find alpha27_recovery -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 13
-          cat alpha27_recovery/chunk_* > "$RUNNER_TEMP/apply-alpha27.b64"
-          echo "5e6cda183e823e570d747b2b818b40a9f2a81113d7cab61b81077bcc31357fc2  $RUNNER_TEMP/apply-alpha27.b64" | sha256sum -c -
-          base64 --decode "$RUNNER_TEMP/apply-alpha27.b64" > "$RUNNER_TEMP/apply_alpha27.py"
-          echo "513b75c4c0605023c33d0ab4c69534e6f5369ce8db0ff7c6e314c38b406d51ba  $RUNNER_TEMP/apply_alpha27.py" | sha256sum -c -
-          python3 -m py_compile "$RUNNER_TEMP/apply_alpha27.py"
-          python3 "$RUNNER_TEMP/apply_alpha27.py" "$RUNNER_TEMP/cineseat-source"
+          MAIN="$RUNNER_TEMP/cineseat-alpha27/lib/main.dart"
+          SERVICE="$RUNNER_TEMP/cineseat-alpha27/android/SeatMonitorService.kt"
+          test "$(grep -c 'NavigationDestination(' "$MAIN")" -eq 3
+          grep -q "label: '감시'" "$MAIN"
+          grep -q "label: '알림'" "$MAIN"
+          grep -q "label: '설정'" "$MAIN"
+          grep -q 'region_theater_picker' "$MAIN"
+          grep -q 'theater_cache_alpha27' "$MAIN"
+          grep -q '_emergencyTheaters' "$MAIN"
+          grep -q '재부팅 후 감시 복구' "$MAIN"
+          grep -q '영화관 캐시 초기화' "$MAIN"
+          grep -q '감시할 실제 좌석' "$MAIN"
+          ! grep -q "Text('영화관 목록'" "$MAIN"
+          ! grep -q '첫 좌석 감시 만들기' "$MAIN"
+          grep -q 'loadCgvAvailable' "$SERVICE"
+          grep -q 'loadLotteAvailable' "$SERVICE"
+          grep -q 'alert_history' "$SERVICE"
+          grep -q 'last_available_' "$SERVICE"
 
       - name: Build and verify validation APK
-        if: steps.source.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/cineseat-source"
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('build.sh')
-          text = path.read_text(encoding='utf-8')
-          marker = 'rm -rf "$APP/lib"\n'
-          replacement = 'rm -rf "$APP/lib" "$APP/test"\n'
-          if marker in text:
-              text = text.replace(marker, replacement, 1)
-          path.write_text(text, encoding='utf-8')
-          PY
+          cd "$RUNNER_TEMP/cineseat-alpha27"
           chmod +x build.sh
           bash build.sh
 
@@ -138,10 +107,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/alpha27-diagnostics"
-          if [[ -d "$RUNNER_TEMP/cineseat-source" ]]; then
-            find "$RUNNER_TEMP/cineseat-source" -maxdepth 2 -type f -printf '%P\n' | sort > "$RUNNER_TEMP/alpha27-diagnostics/source-files.txt"
-            grep -R -n -E "label: '감시'|label: '알림'|label: '설정'|region_theater_picker|cineseat_theater_cache_v2|alpha.27" \
-              "$RUNNER_TEMP/cineseat-source/lib" \
+          if [[ -d "$RUNNER_TEMP/cineseat-alpha27" ]]; then
+            find "$RUNNER_TEMP/cineseat-alpha27" -maxdepth 3 -type f -printf '%P\n' | sort \
+              > "$RUNNER_TEMP/alpha27-diagnostics/source-files.txt"
+            grep -R -n -E "error:|label: '감시'|label: '알림'|label: '설정'|region_theater_picker|alpha.27" \
+              "$RUNNER_TEMP/cineseat-alpha27" \
               > "$RUNNER_TEMP/alpha27-diagnostics/guard-markers.txt" || true
           fi
 
@@ -155,10 +125,9 @@ jobs:
           retention-days: 1
 
       - name: Upload APK and verification
-        if: steps.source.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: temporary-cineseat-alpha27-${{ github.run_number }}
-          path: ${{ runner.temp }}/cineseat-source/dist/*
+          path: ${{ runner.temp }}/cineseat-alpha27/dist/*
           if-no-files-found: error
           retention-days: 1
