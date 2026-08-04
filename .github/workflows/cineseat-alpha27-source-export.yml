@@ -1,4 +1,4 @@
-name: Temporary Encrypted Cineseat Alpha27 Source Export
+name: Temporary Encrypted Cineseat Alpha28 Source Export
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/cineseat-alpha27-source-export.yml'
       - 'alpha27_extract_cert.pem'
-      - 'cineseat_source_chunks/**'
+      - 'cineseat_alpha27_full_chunks/**'
   workflow_dispatch:
 
 permissions:
@@ -27,15 +27,16 @@ jobs:
           key: cineseat-alpha26-pr6-rsa-v1
           fail-on-cache-miss: true
 
-      - name: Decrypt and re-encrypt source for local repair
+      - name: Decrypt final alpha27 source and re-encrypt for local repair
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find cineseat_source_chunks -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 7
+          test "$(find cineseat_alpha27_full_chunks -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 9
           test -s .cineseat-key/private.pem
           test -s .cineseat-key/cert.pem
           test -s alpha27_extract_cert.pem
-          cat cineseat_source_chunks/chunk_* > "$RUNNER_TEMP/source.b64"
+          cat cineseat_alpha27_full_chunks/chunk_* > "$RUNNER_TEMP/source.b64"
+          echo "ebca1dffe9e225dcf146e0189a84c4c82f3ea343d55bfbdef2c5cfaae8850799  $RUNNER_TEMP/source.b64" | sha256sum -c -
           base64 --decode "$RUNNER_TEMP/source.b64" > "$RUNNER_TEMP/source.cms"
           openssl cms -decrypt -binary -inform DER \
             -in "$RUNNER_TEMP/source.cms" \
@@ -44,20 +45,24 @@ jobs:
             -out "$RUNNER_TEMP/source.tar.gz"
           mkdir -p "$RUNNER_TEMP/source"
           tar -xzf "$RUNNER_TEMP/source.tar.gz" -C "$RUNNER_TEMP/source"
+          test -s "$RUNNER_TEMP/source/lib/main.dart"
+          grep -q "label: '감시'" "$RUNNER_TEMP/source/lib/main.dart"
+          grep -q "label: '알림'" "$RUNNER_TEMP/source/lib/main.dart"
+          grep -q "label: '설정'" "$RUNNER_TEMP/source/lib/main.dart"
           tar -czf "$RUNNER_TEMP/source-export.tar.gz" -C "$RUNNER_TEMP/source" .
           openssl cms -encrypt -binary -aes-256-cbc -outform DER \
             -in "$RUNNER_TEMP/source-export.tar.gz" \
-            -out "$RUNNER_TEMP/cineseat-alpha27-source-export.cms" \
+            -out "$RUNNER_TEMP/cineseat-alpha28-source-export.cms" \
             alpha27_extract_cert.pem
-          sha256sum "$RUNNER_TEMP/cineseat-alpha27-source-export.cms" \
-            > "$RUNNER_TEMP/cineseat-alpha27-source-export.sha256"
+          sha256sum "$RUNNER_TEMP/cineseat-alpha28-source-export.cms" \
+            > "$RUNNER_TEMP/cineseat-alpha28-source-export.sha256"
 
-      - name: Upload encrypted source export
+      - name: Upload encrypted final source export
         uses: actions/upload-artifact@v4
         with:
-          name: cineseat-alpha27-encrypted-source-${{ github.run_number }}
+          name: cineseat-alpha28-encrypted-source-${{ github.run_number }}
           path: |
-            ${{ runner.temp }}/cineseat-alpha27-source-export.cms
-            ${{ runner.temp }}/cineseat-alpha27-source-export.sha256
+            ${{ runner.temp }}/cineseat-alpha28-source-export.cms
+            ${{ runner.temp }}/cineseat-alpha28-source-export.sha256
           if-no-files-found: error
           retention-days: 1
