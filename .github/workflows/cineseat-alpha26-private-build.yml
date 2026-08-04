@@ -94,9 +94,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find alpha27_recovery -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 7
+          test "$(find alpha27_recovery -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 13
           cat alpha27_recovery/chunk_* > "$RUNNER_TEMP/apply-alpha27.b64"
+          echo "5e6cda183e823e570d747b2b818b40a9f2a81113d7cab61b81077bcc31357fc2  $RUNNER_TEMP/apply-alpha27.b64" | sha256sum -c -
           base64 --decode "$RUNNER_TEMP/apply-alpha27.b64" > "$RUNNER_TEMP/apply_alpha27.py"
+          echo "513b75c4c0605023c33d0ab4c69534e6f5369ce8db0ff7c6e314c38b406d51ba  $RUNNER_TEMP/apply_alpha27.py" | sha256sum -c -
           python3 -m py_compile "$RUNNER_TEMP/apply_alpha27.py"
           python3 "$RUNNER_TEMP/apply_alpha27.py" "$RUNNER_TEMP/cineseat-source"
 
