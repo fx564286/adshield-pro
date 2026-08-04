@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
 
       - name: Reconstruct patch chain
         shell: bash
