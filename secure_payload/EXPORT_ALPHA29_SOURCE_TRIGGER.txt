@@ -1,2 +1,2 @@
-Export the fully assembled Cineseat alpha29 source for alpha30 automatic seat loading and picker redesign.
-Triggered: 2026-08-05T07:02:00+09:00
+Export the fully assembled Cineseat alpha29 source from the exact head SHA for alpha30 automatic seat loading and picker redesign.
+Triggered: 2026-08-05T07:05:00+09:00
