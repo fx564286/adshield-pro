@@ -1,14 +1,144 @@
-name: Temporary Encrypted Cineseat Alpha27 Build
+name: Temporary Encrypted Cineseat Alpha28 Build
 
 on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/cineseat-alpha26-private-build.yml'
+      - 'cineseat_alpha28_full_chunks/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  FLUTTER_VERSION: '3.44.6'
+
 jobs:
-  archived:
-    if: ${{ false }}
-    runs-on: ubuntu-latest
+  encrypted-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
     steps:
-      - run: echo 'Alpha27 encrypted recovery build completed and archived.'
+      - name: Checkout encrypted build carrier only
+        uses: actions/checkout@v4
+
+      - name: Restore PR-scoped decryption key
+        uses: actions/cache@v4
+        with:
+          path: .cineseat-key
+          key: cineseat-alpha26-pr6-rsa-v1
+          fail-on-cache-miss: true
+
+      - name: Validate encrypted alpha28 source carrier
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find cineseat_alpha28_full_chunks -maxdepth 1 -type f -name 'chunk_*' | wc -l)" -eq 5
+          cat cineseat_alpha28_full_chunks/chunk_* > "$RUNNER_TEMP/alpha28-source.b64"
+          echo "570b1e3c6a446060a74b28ae86f512c76585d5a823c0762e8d94c614f1723ace  $RUNNER_TEMP/alpha28-source.b64" | sha256sum -c -
+          base64 --decode "$RUNNER_TEMP/alpha28-source.b64" > "$RUNNER_TEMP/alpha28-source.cms"
+          echo "27544fd41433490108d0263bb59126d6be4df24b8149ec30756faeebe397b45b  $RUNNER_TEMP/alpha28-source.cms" | sha256sum -c -
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Decrypt repaired alpha28 source in runner memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s .cineseat-key/private.pem
+          test -s .cineseat-key/cert.pem
+          openssl cms -decrypt -binary -inform DER \
+            -in "$RUNNER_TEMP/alpha28-source.cms" \
+            -recip .cineseat-key/cert.pem \
+            -inkey .cineseat-key/private.pem \
+            -out "$RUNNER_TEMP/alpha28-source.tar.gz"
+          echo "fc594e6c38eee6d3d49b99744ebe88806b5c9eb06f3556c836807a4568958534  $RUNNER_TEMP/alpha28-source.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/cineseat-alpha28"
+          tar -xzf "$RUNNER_TEMP/alpha28-source.tar.gz" -C "$RUNNER_TEMP/cineseat-alpha28"
+          test -s "$RUNNER_TEMP/cineseat-alpha28/build.sh"
+          test -s "$RUNNER_TEMP/cineseat-alpha28/lib/main.dart"
+          test -s "$RUNNER_TEMP/cineseat-alpha28/app_icon.png"
+
+      - name: Verify add-watch recovery guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN="$RUNNER_TEMP/cineseat-alpha28/lib/main.dart"
+          test "$(grep -c 'NavigationDestination(' "$MAIN")" -eq 3
+          grep -q "label: '감시'" "$MAIN"
+          grep -q "label: '알림'" "$MAIN"
+          grep -q "label: '설정'" "$MAIN"
+          test "$(grep -c "key: const Key('watch_add_fab')" "$MAIN")" -eq 1
+          test "$(grep -c "key: const Key('empty_watch_add_button')" "$MAIN")" -eq 1
+          grep -q '_EmptyWatchCard(onAdd: _add)' "$MAIN"
+          grep -q 'FloatingActionButton.extended' "$MAIN"
+          grep -q "label: const Text('좌석 감시 추가')" "$MAIN"
+          grep -q 'Future<void> _add()' "$MAIN"
+          grep -q 'WatchWizard()' "$MAIN"
+          grep -q '0.2.1-alpha.28' "$RUNNER_TEMP/cineseat-alpha28/build.sh"
+          grep -q 'VERSION_CODE="48"' "$RUNNER_TEMP/cineseat-alpha28/build.sh"
+
+      - name: Build and verify alpha28 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/cineseat-alpha28"
+          chmod +x build.sh
+          bash build.sh
+
+      - name: Write build status
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIST="$RUNNER_TEMP/cineseat-alpha28/dist"
+          printf '%s\n' \
+            'add_watch_fab_verified=true' \
+            'empty_state_add_button_verified=true' \
+            'watch_wizard_navigation_verified=true' \
+            'fixed_signing=false' \
+            'overwrite_compatible=false' \
+            > "$DIST/ALPHA28-BUILD-STATUS.txt"
+
+      - name: Collect failure diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/alpha28-diagnostics"
+          if [[ -d "$RUNNER_TEMP/cineseat-alpha28" ]]; then
+            find "$RUNNER_TEMP/cineseat-alpha28" -maxdepth 4 -type f -printf '%P\n' | sort \
+              > "$RUNNER_TEMP/alpha28-diagnostics/source-files.txt"
+            grep -R -n -E "error:|Error:|FAILURE:|watch_add_fab|empty_watch_add_button|좌석 감시 추가|alpha.28" \
+              "$RUNNER_TEMP/cineseat-alpha28" \
+              > "$RUNNER_TEMP/alpha28-diagnostics/markers.txt" || true
+          fi
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha28-failure-${{ github.run_number }}
+          path: ${{ runner.temp }}/alpha28-diagnostics/*
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Upload APK and verification
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha28-${{ github.run_number }}
+          path: ${{ runner.temp }}/cineseat-alpha28/dist/*
+          if-no-files-found: error
+          retention-days: 7
