@@ -1,0 +1,1 @@
+Cineseat alpha22 fixed signing using protected repository secrets. Triggered 2026-08-03T11:23:00Z.

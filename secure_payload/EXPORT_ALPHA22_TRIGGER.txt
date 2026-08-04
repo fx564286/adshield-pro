@@ -1,0 +1,1 @@
+Export alpha22 and alpha23 patch source for alpha24 two-pane region selector and independent cancellation conditions. Triggered 2026-08-04T07:04:00+09:00.

@@ -1,0 +1,2 @@
+Build Cineseat alpha27 with the two-pane theater picker, animated cards, native login-free CGV seat loading, and alpha26-compatible fixed signing.
+Triggered: 2026-08-04T22:28:00+09:00

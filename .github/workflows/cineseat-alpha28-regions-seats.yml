@@ -1,0 +1,217 @@
+name: Cineseat Alpha28 Regions Seats
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA28_BUILD_TRIGGER.txt'
+      - 'secure_payload/apply_alpha28_regions_seats.patch.gz.b64.part*'
+      - '.github/workflows/cineseat-alpha28-regions-seats.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha28-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct patch chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha22_seat_ui_fix.py
+          cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha23_ui_cache.py
+          cat secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha25_alpha19_region_condition.py
+          cat secure_payload/apply_alpha26_unified_filters_seat_icon.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          cat secure_payload/apply_alpha27_picker_cgv.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha27_picker_cgv.py
+          cat secure_payload/apply_alpha28_regions_seats.patch.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha28_regions_seats.patch
+          echo 'ca92226fc2eed9af4d29dd0972291e18e8dfa665aa81c2d71a5c6eda52c87340  /tmp/apply_alpha28_regions_seats.patch' | sha256sum -c -
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+          python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
+          python3 -m py_compile secure_payload/apply_alpha25_alpha19_region_condition.py
+          python3 -m py_compile secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          python3 -m py_compile secure_payload/apply_alpha26_key_compat.py
+          python3 -m py_compile secure_payload/apply_alpha27_picker_cgv.py
+          python3 -m py_compile secure_payload/apply_alpha27_legacy_verifier_compat.py
+
+      - name: Prepare alpha28 builder
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha25_alpha19_region_condition.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha26_unified_filters_seat_icon.py "$SOURCE/payload"\n' +
+              'printf "\\n// Cineseat 0.2.1-alpha.28\\n" >> "$SOURCE/payload/lib/wizard_v4.dart"\n',
+              1,
+          )
+          after_polish = "PYFIX\n'''"
+          if after_polish not in wrapper:
+              raise SystemExit('polish anchor missing')
+          wrapper = wrapper.replace(
+              after_polish,
+              'PYFIX\n' +
+              'python3 secure_payload/apply_alpha26_key_compat.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha27_picker_cgv.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha27_legacy_verifier_compat.py "$SOURCE/payload"\n' +
+              '(cd "$SOURCE/payload" && patch --batch --forward -p1 < /tmp/apply_alpha28_regions_seats.patch)\n' +
+              "'''",
+              1,
+          )
+          text_anchor = "text = source.read_text(encoding='utf-8')\n"
+          if text_anchor not in wrapper:
+              raise SystemExit('builder text anchor missing')
+          wrapper = wrapper.replace(
+              text_anchor,
+              text_anchor +
+              "text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.28')\n" +
+              "text = text.replace('version: 0.2.1-alpha.28+41', 'version: 0.2.1-alpha.28+48')\n" +
+              "text = text.replace('--build-number=41', '--build-number=48')\n" +
+              "text = text.replace(\"versionCode='41'\", \"versionCode='48'\")\n" +
+              "text = text.replace('Cineseat 0.2.1-alpha.21 validation build', 'Cineseat 0.2.1-alpha.28 validation build')\n" +
+              "text = text.replace(\"if '0.2.1-alpha.21' not in all_dart:\", \"if '0.2.1-alpha.28' not in all_dart:\")\n" +
+              "text = text.replace('alpha21 version marker is missing', 'alpha28 version marker is missing')\n" +
+              "text = text.replace('  http: ^1.4.0\\n', '  http: ^1.4.0\\n  crypto: ^3.0.7\\n', 1)\n",
+              1,
+          )
+          wrapper = wrapper.replace(
+              '/tmp/build_alpha21_overlay_v2_public.sh',
+              '/tmp/build_alpha28_overlay_v2_public.sh',
+          )
+          Path('/tmp/run_alpha28_stable.sh').write_text(wrapper, encoding='utf-8')
+          PY
+          chmod +x /tmp/run_alpha28_stable.sh
+
+      - name: Restore source encryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - name: Decrypt permanent APK signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p secure_runtime
+          base64 --decode secure_payload/cineseat-release.aes.key.enc.b64 > secure_runtime/cineseat-release.aes.key.enc
+          echo '8eb3210c6a037703ae5f29303ba7cc9b051e338434ae261dabb14779111d3909  secure_runtime/cineseat-release.aes.key.enc' | sha256sum -c -
+          openssl pkeyutl -decrypt \
+            -inkey secure_runtime/private.pem \
+            -in secure_runtime/cineseat-release.aes.key.enc \
+            -out secure_runtime/cineseat-release.aes.key \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256
+          base64 --decode secure_payload/cineseat-release.p12.enc.b64 > secure_runtime/cineseat-release.p12.enc
+          echo '9696b12c5690244d8fdadc955cf238b3d90361b984e0ed7ab22a12ed3ad894cf  secure_runtime/cineseat-release.p12.enc' | sha256sum -c -
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -in secure_runtime/cineseat-release.p12.enc \
+            -out secure_runtime/cineseat-release.p12 \
+            -pass file:secure_runtime/cineseat-release.aes.key
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Build alpha28
+        shell: bash
+        run: bash /tmp/run_alpha28_stable.sh
+
+      - name: Permanently sign alpha28
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='dist/cineseat-0.2.1-alpha.28-VALIDATION.apk'
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$TOOLS/apksigner" sign \
+            --ks secure_runtime/cineseat-release.p12 \
+            --ks-type PKCS12 \
+            --ks-key-alias cineseat \
+            --ks-pass pass:cineseat-fixed-2026 \
+            --key-pass pass:cineseat-fixed-2026 \
+            --v1-signing-enabled false \
+            --v2-signing-enabled true \
+            --v3-signing-enabled false \
+            --out dist/alpha28-fixed.apk "$APK"
+          mv dist/alpha28-fixed.apk "$APK"
+          "$TOOLS/zipalign" -c -v 4 "$APK"
+          "$TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee dist/APK-SIGNATURE.txt
+          "$TOOLS/aapt" dump badging "$APK" | tee dist/APK-PACKAGE-INFO.txt
+          sha256sum "$APK" | tee dist/SHA256SUMS.txt
+
+      - name: Verify alpha28 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "package: name='com.fx564286.cinema_seat_alert'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionCode='48'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionName='0.2.1-alpha.28'" dist/APK-PACKAGE-INFO.txt
+          grep -q 'f8954ba293629909345ca7a0ae42198bfb0a6b568e1cf5384ecb9c7a3e18edd4' dist/APK-SIGNATURE.txt
+          grep -q 'Verified using v2 scheme (APK Signature Scheme v2): true' dist/APK-SIGNATURE.txt
+          test -s dist/cineseat-0.2.1-alpha.28-VALIDATION.apk
+          unzip -tq dist/cineseat-0.2.1-alpha.28-VALIDATION.apk
+          cat >> dist/BUILD_REPORT.txt <<'REPORT'
+          - adjacent seats and preferred zone are one combined monitoring condition
+          - legacy zone watches migrate to the combined adjacent-zone condition
+          - region picker includes second-level city/county/district choices with filtered counts
+          - region and district counts use the active cinema-chain and display filters
+          - CGV direct login-free seat API is attempted before the official WebView fallback
+          - Megabox seat loading retries JSON and form request variants and recursively finds seat lists
+          - encoded theater-name entities are normalized
+          - fixed alpha27 signing certificate retained for overwrite installation
+          REPORT
+
+      - name: Upload alpha28 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha28-regions-seats-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7

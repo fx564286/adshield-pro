@@ -1,0 +1,2 @@
+Generate a permanent encrypted Cineseat APK signing key for alpha27 and all later overwrite-installable builds.
+Triggered: 2026-08-04T23:18:00+09:00

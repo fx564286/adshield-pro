@@ -1,0 +1,35 @@
+name: Export Alpha25 Patch For Alpha26
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/EXPORT_ALPHA25_PATCH_TRIGGER.txt'
+      - '.github/workflows/export-alpha25-patch-for-alpha26.yml'
+      - 'secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part*'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct alpha25 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha25_alpha19_region_condition.py
+          echo '28901ab270d253693ef69d93ed11a92d87d98f6057528eb0342da914c655ec3b  /tmp/apply_alpha25_alpha19_region_condition.py' | sha256sum -c -
+          python3 -m py_compile /tmp/apply_alpha25_alpha19_region_condition.py
+      - name: Upload alpha25 patch source
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha25-patch-source-for-alpha26
+          path: /tmp/apply_alpha25_alpha19_region_condition.py
+          if-no-files-found: error
+          retention-days: 2

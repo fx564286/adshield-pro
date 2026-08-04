@@ -1,0 +1,164 @@
+name: Cineseat Alpha26 Unified Filters Seat
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA26_BUILD_TRIGGER.txt'
+      - 'secure_payload/apply_alpha26_unified_filters_seat_icon.py.gz.b64.part*'
+      - 'secure_payload/apply_alpha26_key_compat.py'
+      - '.github/workflows/cineseat-alpha26-unified-seat.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha26-unified-seat-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct stable and alpha26 patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha22_seat_ui_fix.py
+          cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha23_ui_cache.py
+          cat secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha25_alpha19_region_condition.py
+          cat secure_payload/apply_alpha26_unified_filters_seat_icon.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          echo '15812356f1ef0023c66d9d2b478d3418661d625d47bc8d97f75e3c49ea473307  secure_payload/apply_alpha26_unified_filters_seat_icon.py' | sha256sum -c -
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+          python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
+          python3 -m py_compile secure_payload/apply_alpha25_alpha19_region_condition.py
+          python3 -m py_compile secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          python3 -m py_compile secure_payload/apply_alpha26_key_compat.py
+
+      - name: Prepare alpha26 stable builder wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable home addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha25_alpha19_region_condition.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha26_unified_filters_seat_icon.py "$SOURCE/payload"\n' +
+              'printf "\\n// Cineseat 0.2.1-alpha.26\\n" >> "$SOURCE/payload/lib/wizard_v4.dart"\n',
+              1,
+          )
+
+          after_polish_anchor = "PYFIX\n'''"
+          if after_polish_anchor not in wrapper:
+              raise SystemExit('region polish completion anchor missing')
+          wrapper = wrapper.replace(
+              after_polish_anchor,
+              'PYFIX\n' +
+              'python3 secure_payload/apply_alpha26_key_compat.py "$SOURCE/payload"\n' +
+              "'''",
+              1,
+          )
+
+          text_anchor = "text = source.read_text(encoding='utf-8')\n"
+          if text_anchor not in wrapper:
+              raise SystemExit('underlying builder text anchor missing')
+          wrapper = wrapper.replace(
+              text_anchor,
+              text_anchor +
+              "text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.26')\n" +
+              "text = text.replace('version: 0.2.1-alpha.26+41', 'version: 0.2.1-alpha.26+46')\n" +
+              "text = text.replace('--build-number=41', '--build-number=46')\n" +
+              "text = text.replace(\"versionCode='41'\", \"versionCode='46'\")\n" +
+              "text = text.replace('Cineseat 0.2.1-alpha.21 validation build', 'Cineseat 0.2.1-alpha.26 validation build')\n" +
+              "text = text.replace(\"if '0.2.1-alpha.21' not in all_dart:\", \"if '0.2.1-alpha.26' not in all_dart:\")\n" +
+              "text = text.replace('alpha21 version marker is missing', 'alpha26 version marker is missing')\n",
+              1,
+          )
+          wrapper = wrapper.replace(
+              '/tmp/build_alpha21_overlay_v2_public.sh',
+              '/tmp/build_alpha26_overlay_v2_public.sh',
+          )
+          Path('/tmp/run_alpha26_stable.sh').write_text(wrapper, encoding='utf-8')
+          PY
+          chmod +x /tmp/run_alpha26_stable.sh
+
+      - name: Restore runner-only RSA key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Build and verify Cineseat alpha26
+        shell: bash
+        run: bash /tmp/run_alpha26_stable.sh
+
+      - name: Verify alpha26 source and package
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "versionCode='46'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionName='0.2.1-alpha.26'" dist/APK-PACKAGE-INFO.txt
+          test -s dist/cineseat-0.2.1-alpha.26-VALIDATION.apk
+          unzip -tq dist/cineseat-0.2.1-alpha.26-VALIDATION.apk
+          cat >> dist/BUILD_REPORT.txt <<'REPORT'
+          - region, district, cinema chain, sort and visibility filters are integrated into one expandable card
+          - selected province/district and active filter count are summarized in the card header
+          - seat loading no longer silently accepts null or empty layouts
+          - Lotte Cinema and Megabox seat layouts can be retried directly from the seat screen
+          - CGV seat import is exposed as the primary recovery action through the official non-member seat screen
+          - successful real-seat loading automatically enables specific-seat monitoring
+          - seat map starts top-centered with a wider zoom range for immediate visibility
+          - launcher icon replaced with a cleaner cinema-seat and availability-check symbol
+          - alpha25 watch-condition separation, alpha23 cache and background monitoring retained
+          REPORT
+
+      - name: Upload alpha26 build package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha26-unified-seat-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7

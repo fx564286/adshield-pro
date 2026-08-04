@@ -1,0 +1,1 @@
+Run the corrected alpha20 V6 build and package the validation APK for fixed local signing.

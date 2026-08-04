@@ -1,0 +1,2 @@
+Request an ephemeral encryption public key for the Cineseat secure build.
+No application source is stored in this branch.

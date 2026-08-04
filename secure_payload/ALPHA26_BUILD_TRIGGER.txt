@@ -1,0 +1,4 @@
+Cineseat alpha26 unified region/filter card, seat-map recovery and clean launcher icon build.
+Triggered: 2026-08-04T15:21:00+09:00
+VersionName: 0.2.1-alpha.26
+VersionCode: 46
