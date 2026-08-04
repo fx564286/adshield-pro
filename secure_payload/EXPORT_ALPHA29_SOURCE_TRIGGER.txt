@@ -1,2 +1,2 @@
-Export the exact successful Cineseat alpha29 merge source for alpha30 automatic seat loading and picker redesign.
-Triggered: 2026-08-05T07:09:00+09:00
+Export the exact successful Cineseat alpha29 source with matching patch context for alpha30.
+Triggered: 2026-08-05T07:13:00+09:00
