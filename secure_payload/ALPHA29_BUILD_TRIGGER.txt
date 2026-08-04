@@ -1,0 +1,2 @@
+Build Cineseat 0.2.1-alpha.29 with Megabox official-screen seat import, independent nationwide picker state, and redesigned theater selection.
+Triggered: 2026-08-05T06:02:00+09:00
