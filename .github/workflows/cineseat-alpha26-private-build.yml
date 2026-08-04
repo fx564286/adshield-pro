@@ -104,6 +104,16 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/cineseat-alpha27"
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('build.sh')
+          text = path.read_text(encoding='utf-8')
+          old = "service = Path('android/app/src/main/kotlin/com/fx564286/cinema_seat_alert/SeatMonitorService.kt').read_text(encoding='utf-8')"
+          new = "service = (app / 'android/app/src/main/kotlin/com/fx564286/cinema_seat_alert/SeatMonitorService.kt').read_text(encoding='utf-8')"
+          if old not in text:
+              raise SystemExit('alpha27 native path compatibility marker missing')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
           chmod +x build.sh
           bash build.sh
 
