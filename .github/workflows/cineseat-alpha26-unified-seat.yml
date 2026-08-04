@@ -75,8 +75,18 @@ jobs:
               'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n' +
               'python3 secure_payload/apply_alpha25_alpha19_region_condition.py "$SOURCE/payload"\n' +
               'python3 secure_payload/apply_alpha26_unified_filters_seat_icon.py "$SOURCE/payload"\n' +
-              'python3 secure_payload/apply_alpha26_key_compat.py "$SOURCE/payload"\n' +
               'printf "\\n// Cineseat 0.2.1-alpha.26\\n" >> "$SOURCE/payload/lib/wizard_v4.dart"\n',
+              1,
+          )
+
+          after_polish_anchor = "PYFIX\n'''"
+          if after_polish_anchor not in wrapper:
+              raise SystemExit('region polish completion anchor missing')
+          wrapper = wrapper.replace(
+              after_polish_anchor,
+              'PYFIX\n' +
+              'python3 secure_payload/apply_alpha26_key_compat.py "$SOURCE/payload"\n' +
+              "'''",
               1,
           )
 
