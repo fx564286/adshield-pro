@@ -1,0 +1,3 @@
+Trigger exact encrypted Cineseat alpha.21 overlay build.
+versionName=0.2.1-alpha.21
+versionCode=41

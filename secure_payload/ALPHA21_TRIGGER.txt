@@ -1,0 +1,6 @@
+Cineseat alpha.21 encrypted stable-watch build trigger
+source base: alpha.19 stable WatchWizard
+region: province -> district/city
+launcher: dedicated cinema seat icon
+versionName: 0.2.1-alpha.21
+versionCode: 41
