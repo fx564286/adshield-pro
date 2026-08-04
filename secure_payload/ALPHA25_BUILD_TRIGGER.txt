@@ -1,0 +1,1 @@
+Cineseat alpha25 build: restore alpha19-style region selector, retain second-level district selection, and unify non-overlapping watch condition UI. Triggered 2026-08-04T11:40:00+09:00.
