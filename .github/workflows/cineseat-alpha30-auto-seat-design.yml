@@ -25,7 +25,7 @@ jobs:
       - name: Checkout current alpha30 request
         uses: actions/checkout@v4
 
-      - name: Preserve alpha30 inputs and update legacy verifier
+      - name: Preserve alpha30 inputs
         shell: bash
         run: |
           set -euo pipefail
@@ -35,29 +35,17 @@ jobs:
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha30_auto_seat_design.patch
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
-          python3 - <<'PY'
-          from pathlib import Path
 
-          path = Path('/tmp/build_alpha30_auto_seat_design.sh')
-          source = path.read_text(encoding='utf-8')
-          anchor = 'chmod +x /tmp/run_alpha30_stable.sh\n'
-          if anchor not in source:
-              raise SystemExit('alpha30 wrapper chmod anchor missing')
-          source = source.replace(
-              anchor,
-              anchor + "sed -i '/district_filter_wrap/d' /tmp/run_alpha30_stable.sh\n",
-              1,
-          )
-          path.write_text(source, encoding='utf-8')
-          PY
-
-      - name: Restore exact successful alpha29 merge
+      - name: Restore exact successful alpha29 merge and update legacy verifier
         shell: bash
         run: |
           set -euo pipefail
           git fetch --no-tags --depth=1 origin 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
           git checkout --force 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
           test "$(git rev-parse HEAD)" = '612f0604d9b23fbd4ce0da7e1a726f2e9e63326b'
+          grep -q 'district_filter_wrap' secure_payload/build_alpha21_overlay_public.sh
+          sed -i '/district_filter_wrap/d' secure_payload/build_alpha21_overlay_public.sh
+          ! grep -q 'district_filter_wrap' secure_payload/build_alpha21_overlay_public.sh
 
       - name: Restore source and signing decryption key
         uses: actions/cache@v4
