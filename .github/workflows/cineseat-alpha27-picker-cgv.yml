@@ -50,7 +50,7 @@ jobs:
             | base64 --decode | gzip --decompress \
             > secure_payload/apply_alpha27_picker_cgv.py
           echo '15812356f1ef0023c66d9d2b478d3418661d625d47bc8d97f75e3c49ea473307  secure_payload/apply_alpha26_unified_filters_seat_icon.py' | sha256sum -c -
-          echo 'b54d536d8449987dc8227266b0c298c96cc5a646598b73e44d32a0d8bd1b5b51  secure_payload/apply_alpha27_picker_cgv.py' | sha256sum -c -
+          echo '77d886528b9f47e50eea771b21beb2f37f496529019ec7190a0d3c1ced60b8a5  secure_payload/apply_alpha27_picker_cgv.py' | sha256sum -c -
           python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
           python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
           python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
