@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import sys
 
 
@@ -23,8 +24,30 @@ def apply(payload_root: Path) -> None:
             f'alpha26 compatibility key replacement incomplete: '
             f'{changed}/{len(replacements)}'
         )
+
+    handler_pattern = re.compile(
+        r"onSelected:\s*\(_\)\s*=>\s*"
+        r"setState\(\(\)\s*=>\s*_districtFilter\s*=\s*district\),"
+    )
+    handler_replacement = (
+        "onSelected: (_) {\n"
+        "                      setState(() => _districtFilter = district);\n"
+        "                      _regionExpansionController.collapse();\n"
+        "                    },"
+    )
+    source, handler_count = handler_pattern.subn(
+        handler_replacement,
+        source,
+        count=1,
+    )
+    if handler_count != 1:
+        raise SystemExit(
+            f'alpha26 district collapse handler replacement incomplete: '
+            f'{handler_count}/1'
+        )
+
     path.write_text(source, encoding='utf-8')
-    print('alpha26 legacy region test keys preserved')
+    print('alpha26 legacy region keys and district auto-collapse preserved')
 
 
 if __name__ == '__main__':
