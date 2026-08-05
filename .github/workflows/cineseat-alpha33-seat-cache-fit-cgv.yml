@@ -1,0 +1,169 @@
+name: Cineseat Alpha33 Seat Cache Fit CGV
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA33_BUILD_TRIGGER.txt'
+      - 'secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.part*'
+      - '.github/workflows/cineseat-alpha33-seat-cache-fit-cgv.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha33-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout current alpha33 request
+        uses: actions/checkout@v4
+
+      - name: Preserve and prepare alpha33 inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp secure_payload/build_alpha30_auto_seat_design.sh /tmp/build_alpha33_seat_cache_fit_cgv.sh
+          chmod +x /tmp/build_alpha33_seat_cache_fit_cgv.sh
+          cat secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha30_auto_seat_design.patch
+          cat secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64 \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha31_unified_picker_probe.patch
+          cat secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha32_cgv_inline_megabox.patch
+          cat secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha33_seat_cache_fit_cgv.patch
+          echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
+          echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
+          echo '575bacd49ed8187d115c1abe21a0110dd4648247e23d3f811affc08b63d8b84f  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -
+          echo '68fec9b89320d0e1fdde0d53793e36925979ba0e5c83fab95d9da622ff07b9a8  /tmp/apply_alpha33_seat_cache_fit_cgv.patch' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('/tmp/build_alpha33_seat_cache_fit_cgv.sh')
+          source = path.read_text(encoding='utf-8')
+          preamble = 'PATCH30="/tmp/apply_alpha30_auto_seat_design.patch"\nDIST='
+          if preamble not in source:
+              raise SystemExit('alpha30 patch preamble missing')
+          source = source.replace(
+              preamble,
+              'PATCH30="/tmp/apply_alpha30_auto_seat_design.patch"\n'
+              'PATCH31="/tmp/apply_alpha31_unified_picker_probe.patch"\n'
+              'PATCH32="/tmp/apply_alpha32_cgv_inline_megabox.patch"\n'
+              'PATCH33="/tmp/apply_alpha33_seat_cache_fit_cgv.patch"\nDIST=',
+              1,
+          )
+
+          verify = (
+              'test -s "$PATCH30"\n'
+              "echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -\n"
+          )
+          if verify not in source:
+              raise SystemExit('alpha30 verification anchor missing')
+          source = source.replace(
+              verify,
+              verify
+              + 'test -s "$PATCH31"\n'
+              + 'test -s "$PATCH32"\n'
+              + 'test -s "$PATCH33"\n'
+              + "echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -\n"
+              + "echo '575bacd49ed8187d115c1abe21a0110dd4648247e23d3f811affc08b63d8b84f  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -\n"
+              + "echo '68fec9b89320d0e1fdde0d53793e36925979ba0e5c83fab95d9da622ff07b9a8  /tmp/apply_alpha33_seat_cache_fit_cgv.patch' | sha256sum -c -\n",
+              1,
+          )
+
+          patch30 = "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha30_auto_seat_design.patch)\\n' +\n"
+          if patch30 not in source:
+              raise SystemExit('alpha30 patch application anchor missing')
+          source = source.replace(
+              patch30,
+              patch30
+              + "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha31_unified_picker_probe.patch)\\n' +\n"
+              + "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha32_cgv_inline_megabox.patch)\\n' +\n"
+              + "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha33_seat_cache_fit_cgv.patch)\\n' +\n"
+              + "    'grep -q \"exact_seat_viewport\" \"$SOURCE/payload/lib/wizard_v4.dart\"\\n' +\n"
+              + "    'grep -q \"loadCachedExactSeatLayout\" \"$SOURCE/payload/lib/services.dart\"\\n' +\n"
+              + "    'grep -q \"warmSeatSession\" \"$SOURCE/payload/lib/services.dart\"\\n' +\n"
+              + "    'grep -q \"nmbrAtktFlag\" \"$SOURCE/payload/lib/official_seat_web.dart\"\\n' +\n"
+              + "    '! grep -q \"label: const Text('크게 보기')\" \"$SOURCE/payload/lib/wizard_v4.dart\"\\n' +\n",
+              1,
+          )
+
+          source = source.replace('0.2.1-alpha.30', '0.2.1-alpha.33')
+          source = source.replace('version: 0.2.1-alpha.33+50', 'version: 0.2.1-alpha.33+53')
+          source = source.replace('--build-number=50', '--build-number=53')
+          source = source.replace("versionCode='50'", "versionCode='53'")
+          source = source.replace('alpha30-fixed.apk', 'alpha33-fixed.apk')
+          source = source.replace('run_alpha30_stable', 'run_alpha33_stable')
+          source = source.replace('build_alpha30_overlay', 'build_alpha33_overlay')
+          source = source.replace('alpha30 version marker', 'alpha33 version marker')
+          source = source.replace(
+              'fixed alpha27 signing certificate retained for overwrite installation over alpha29',
+              'fixed signing certificate retained for overwrite installation over alpha32',
+          )
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Restore exact successful alpha29 merge and update legacy verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          git checkout --force 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          test "$(git rev-parse HEAD)" = '612f0604d9b23fbd4ce0da7e1a726f2e9e63326b'
+          sed -i '/district_filter_wrap/d' secure_payload/build_alpha21_overlay_public.sh
+
+      - name: Restore source and signing decryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Build, test, sign and verify alpha33
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash /tmp/build_alpha33_seat_cache_fit_cgv.sh
+          grep -q "versionCode='53'" dist/APK-PACKAGE-INFO.txt
+          grep -q "versionName='0.2.1-alpha.33'" dist/APK-PACKAGE-INFO.txt
+          cat >> dist/BUILD_REPORT.txt <<'REPORT'
+          - exact seat maps are fitted to the visible card width from the first frame
+          - unused horizontal canvas margins are removed and map clipping is hardened
+          - the optional large theater picker action is removed
+          - Megabox exact seat layouts persist locally and are displayed immediately on revisit
+          - Megabox session cookies are reused and seat status refresh runs behind cached UI
+          - duplicate Megabox session preparation is coalesced and request timeouts are reduced
+          - CGV current and legacy showtime aliases are both carried through official nonmember URLs
+          - CGV login redirects are detected without attempting to bypass access controls
+          - cached layouts remain visible when a background refresh temporarily fails
+          - fixed signing certificate retained for overwrite installation over alpha32
+          REPORT
+
+      - name: Upload alpha33 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha33-seat-cache-fit-cgv-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
