@@ -1,0 +1,2 @@
+Build Cineseat 0.2.1-alpha.35 with exact show-end watch cleanup and official CGV legacy guest-seat loading.
+Triggered: 2026-08-05T18:08:00+09:00
