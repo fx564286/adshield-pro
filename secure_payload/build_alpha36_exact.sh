@@ -34,7 +34,7 @@ checks = {
     'services': [
         '/cnm/atkt/searchIfSeatDataK',
         '/cnm/atkt/searchIfSeatData',
-        '홈페이지를 열지 않고 직접 API를 다시 시도해 주세요.',
+        '홈페이지를 열지 않고 새로고침으로 다시 시도해 주세요.',
     ],
     'ads': [
         'BannerAd(',
