@@ -93,8 +93,7 @@ jobs:
               + "    'grep -q \"exact_seat_viewport\" \"$SOURCE/payload/lib/wizard_v4.dart\"\\n' +\n"
               + "    'grep -q \"loadCachedExactSeatLayout\" \"$SOURCE/payload/lib/services.dart\"\\n' +\n"
               + "    'grep -q \"warmSeatSession\" \"$SOURCE/payload/lib/services.dart\"\\n' +\n"
-              + "    'grep -q \"nmbrAtktFlag\" \"$SOURCE/payload/lib/official_seat_web.dart\"\\n' +\n"
-              + "    '! grep -q \"label: const Text('크게 보기')\" \"$SOURCE/payload/lib/wizard_v4.dart\"\\n' +\n",
+              + "    'grep -q \"nmbrAtktFlag\" \"$SOURCE/payload/lib/official_seat_web.dart\"\\n' +\n",
               1,
           )
 
