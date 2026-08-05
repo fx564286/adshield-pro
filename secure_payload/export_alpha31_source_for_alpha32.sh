@@ -63,17 +63,22 @@ p = Path('/tmp/run_alpha31_stable.sh')
 lines = p.read_text(encoding='utf-8').splitlines(keepends=True)
 idx = next(
     i for i, line in enumerate(lines)
-    if 'apply_alpha31_unified_picker_probe.patch' in line and 'patch --batch' in line
+    if line.strip() == "text = source.read_text(encoding='utf-8')"
 )
-export_lines = [
-    "    'rm -rf /tmp/exported_alpha31\n' +\n",
-    "    'mkdir -p /tmp/exported_alpha31\n' +\n",
-    "    'cp -R \"$SOURCE/payload/lib\" /tmp/exported_alpha31/lib\n' +\n",
-    "    'cp -R \"$SOURCE/payload/test\" /tmp/exported_alpha31/test\n' +\n",
-    "    'cp \"$SOURCE/payload/app_icon.png\" /tmp/exported_alpha31/app_icon.png\n' +\n",
-    "    'exit 0\n' +\n",
+export_code = [
+    "text = text.replace(\n",
+    "    '# Restore the encrypted foreground monitor and boot receiver.\\n',\n",
+    "    'rm -rf /tmp/exported_alpha31\\n'\n",
+    "    'mkdir -p /tmp/exported_alpha31\\n'\n",
+    "    'cp -R \\\"$SOURCE/payload/lib\\\" /tmp/exported_alpha31/lib\\n'\n",
+    "    'cp -R \\\"$SOURCE/payload/test\\\" /tmp/exported_alpha31/test\\n'\n",
+    "    'cp \\\"$SOURCE/payload/app_icon.png\\\" /tmp/exported_alpha31/app_icon.png\\n'\n",
+    "    'exit 0\\n\\n'\n",
+    "    '# Restore the encrypted foreground monitor and boot receiver.\\n',\n",
+    "    1,\n",
+    ")\n",
 ]
-lines[idx + 1:idx + 1] = export_lines
+lines[idx + 1:idx + 1] = export_code
 p.write_text(''.join(lines), encoding='utf-8')
 PYEXPORT
 '''
