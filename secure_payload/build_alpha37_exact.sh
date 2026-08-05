@@ -24,23 +24,18 @@ text = text.replace(
     anchor + '''python3 /tmp/patch_alpha37_crash_ads.py "$SOURCE"
 python3 - "$SOURCE/lib/ads.dart" <<'PYADS'
 from pathlib import Path
-import re
 import sys
 
 path = Path(sys.argv[1])
 source = path.read_text(encoding='utf-8')
-source, count = re.subn(
-    r"\n        if \(ready\) \{\n"
-    r"          unawaited\(_rewardedAdService\.load\(\)\);\n"
-    r"          unawaited\(_interstitialAdService\.load\(\)\);\n"
-    r"        \}",
-    "",
-    source,
-    count=1,
-)
-if count != 1:
+preload = """        if (ready) {
+          unawaited(_rewardedAdService.load());
+          unawaited(_interstitialAdService.load());
+        }
+"""
+if preload not in source:
     raise SystemExit('alpha37 ad service preload block missing')
-path.write_text(source, encoding='utf-8')
+path.write_text(source.replace(preload, '', 1), encoding='utf-8')
 PYADS
 ''',
     1,
