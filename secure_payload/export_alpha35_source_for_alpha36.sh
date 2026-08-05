@@ -16,7 +16,7 @@ bash "$BUILD_SCRIPT"
 if anchor not in source:
     raise SystemExit('alpha35 final execution anchor missing')
 
-replacement = r'''python3 - <<'PYEXPORT'
+replacement = r"""python3 - <<'PYEXPORT'
 from pathlib import Path
 
 path = Path('/tmp/build_alpha35_base.sh')
@@ -61,7 +61,7 @@ PYEXPORT
 
 chmod +x "$BUILD_SCRIPT"
 bash "$BUILD_SCRIPT"
-'''
+"""
 source = source.replace(anchor, replacement, 1)
 path.write_text(source, encoding='utf-8')
 PY
