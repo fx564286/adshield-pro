@@ -1,0 +1,1 @@
+Build Cineseat alpha37 with delayed AdMob startup and the user-provided production app, banner, rewarded and interstitial IDs.
