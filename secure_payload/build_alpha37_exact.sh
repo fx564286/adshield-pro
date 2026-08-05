@@ -7,22 +7,6 @@ PATCHER=/tmp/patch_alpha37_crash_ads.py
 
 test -s "$BASE"
 test -s "$PATCHER"
-
-# The generated alpha36 source can have its comments reformatted independently
-# of the AdIds class. Match the class itself instead of a following comment.
-python3 - "$PATCHER" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding='utf-8')
-old = "ad_ids_pattern = re.compile(r'class AdIds \\{.*?\\n\\}\\n\\n/// 동의 확인', re.S)"
-new = "ad_ids_pattern = re.compile(r'class AdIds \\{.*?^\\}', re.S | re.M)"
-if old not in text:
-    raise SystemExit('alpha37 AdIds regex anchor missing')
-path.write_text(text.replace(old, new, 1), encoding='utf-8')
-PY
-
 cp "$BASE" "$RUNTIME"
 
 python3 - "$RUNTIME" <<'PY'
