@@ -41,7 +41,7 @@ jobs:
             > /tmp/apply_alpha32_cgv_inline_megabox.patch
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
           echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
-          echo '12296623271d4eaa96b77d4d30326d4f96b88f700334fa4f2b58b3c760e39bda  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -
+          echo '575bacd49ed8187d115c1abe21a0110dd4648247e23d3f811affc08b63d8b84f  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -
           python3 - <<'PY'
           from pathlib import Path
 
@@ -70,7 +70,7 @@ jobs:
               + 'test -s "$PATCH31"\n'
               + 'test -s "$PATCH32"\n'
               + "echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -\n"
-              + "echo '12296623271d4eaa96b77d4d30326d4f96b88f700334fa4f2b58b3c760e39bda  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -\n",
+              + "echo '575bacd49ed8187d115c1abe21a0110dd4648247e23d3f811affc08b63d8b84f  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -\n",
               1,
           )
 
