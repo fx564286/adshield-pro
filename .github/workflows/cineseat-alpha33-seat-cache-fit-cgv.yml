@@ -5,7 +5,7 @@ on:
     branches: [cineseat-secure-builder]
     paths:
       - 'secure_payload/ALPHA33_BUILD_TRIGGER.txt'
-      - 'secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.part*'
+      - 'secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.seg*'
       - '.github/workflows/cineseat-alpha33-seat-cache-fit-cgv.yml'
 
 permissions:
@@ -39,7 +39,7 @@ jobs:
           cat secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64.part* \
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha32_cgv_inline_megabox.patch
-          cat secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.part* \
+          cat secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.seg* \
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha33_seat_cache_fit_cgv.patch
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
