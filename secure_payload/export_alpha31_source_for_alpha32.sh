@@ -66,12 +66,12 @@ idx = next(
     if 'apply_alpha31_unified_picker_probe.patch' in line and 'patch --batch' in line
 )
 export_lines = [
-    "    'rm -rf /tmp/exported_alpha31\\n' +\n",
-    "    'mkdir -p /tmp/exported_alpha31\\n' +\n",
-    "    'cp -R \\\"$SOURCE/payload/lib\\\" /tmp/exported_alpha31/lib\\n' +\n",
-    "    'cp -R \\\"$SOURCE/payload/test\\\" /tmp/exported_alpha31/test\\n' +\n",
-    "    'cp \\\"$SOURCE/payload/app_icon.png\\\" /tmp/exported_alpha31/app_icon.png\\n' +\n",
-    "    'exit 0\\n' +\n",
+    "    'rm -rf /tmp/exported_alpha31\n' +\n",
+    "    'mkdir -p /tmp/exported_alpha31\n' +\n",
+    "    'cp -R \"$SOURCE/payload/lib\" /tmp/exported_alpha31/lib\n' +\n",
+    "    'cp -R \"$SOURCE/payload/test\" /tmp/exported_alpha31/test\n' +\n",
+    "    'cp \"$SOURCE/payload/app_icon.png\" /tmp/exported_alpha31/app_icon.png\n' +\n",
+    "    'exit 0\n' +\n",
 ]
 lines[idx + 1:idx + 1] = export_lines
 p.write_text(''.join(lines), encoding='utf-8')
