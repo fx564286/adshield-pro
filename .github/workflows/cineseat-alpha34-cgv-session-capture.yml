@@ -6,7 +6,7 @@ on:
     paths:
       - 'secure_payload/ALPHA34_BUILD_TRIGGER.txt'
       - 'secure_payload/build_alpha34_cgv_session_capture.sh'
-      - 'secure_payload/apply_alpha34_cgv_session_capture.patch.gz.b64'
+      - 'secure_payload/apply_alpha34_cgv_session_capture.patch.gz.b64.part*'
       - '.github/workflows/cineseat-alpha34-cgv-session-capture.yml'
 
 permissions:
@@ -44,8 +44,8 @@ jobs:
           cat secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.seg* \
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha33_seat_cache_fit_cgv.patch
-          base64 --decode secure_payload/apply_alpha34_cgv_session_capture.patch.gz.b64 \
-            | gzip --decompress \
+          cat secure_payload/apply_alpha34_cgv_session_capture.patch.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha34_cgv_session_capture.patch
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
           echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
