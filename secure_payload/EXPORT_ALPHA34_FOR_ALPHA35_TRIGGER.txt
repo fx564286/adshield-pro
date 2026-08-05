@@ -1,0 +1,2 @@
+Export exact alpha34 source for expired monitoring cleanup and CGV seat diagnosis.
+Triggered: 2026-08-05T18:01:00+09:00

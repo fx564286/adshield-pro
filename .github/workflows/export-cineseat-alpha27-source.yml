@@ -1,0 +1,134 @@
+name: Export Cineseat Alpha27 Assembled Source
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - '.github/workflows/export-cineseat-alpha27-source.yml'
+      - 'secure_payload/EXPORT_ALPHA27_SOURCE_TRIGGER.txt'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: export-cineseat-alpha27-source-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct alpha27 patch scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha22_seat_ui_fix.py
+          cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha23_ui_cache.py
+          cat secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha25_alpha19_region_condition.py
+          cat secure_payload/apply_alpha26_unified_filters_seat_icon.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          cat secure_payload/apply_alpha27_picker_cgv.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha27_picker_cgv.py
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+          python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
+          python3 -m py_compile secure_payload/apply_alpha25_alpha19_region_condition.py
+          python3 -m py_compile secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          python3 -m py_compile secure_payload/apply_alpha26_key_compat.py
+          python3 -m py_compile secure_payload/apply_alpha27_picker_cgv.py
+          python3 -m py_compile secure_payload/apply_alpha27_legacy_verifier_compat.py
+
+      - name: Restore source decryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - name: Assemble and export alpha27 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable home addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha25_alpha19_region_condition.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha26_unified_filters_seat_icon.py "$SOURCE/payload"\n' +
+              'printf "\\n// Cineseat 0.2.1-alpha.27\\n" >> "$SOURCE/payload/lib/wizard_v4.dart"\n',
+              1,
+          )
+
+          after_polish_anchor = "PYFIX\n'''"
+          if after_polish_anchor not in wrapper:
+              raise SystemExit('region polish completion anchor missing')
+          wrapper = wrapper.replace(
+              after_polish_anchor,
+              'PYFIX\n' +
+              'python3 secure_payload/apply_alpha26_key_compat.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha27_picker_cgv.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha27_legacy_verifier_compat.py "$SOURCE/payload"\n' +
+              "'''",
+              1,
+          )
+
+          text_anchor = "text = source.read_text(encoding='utf-8')\n"
+          if text_anchor not in wrapper:
+              raise SystemExit('underlying builder text anchor missing')
+          wrapper = wrapper.replace(
+              text_anchor,
+              text_anchor +
+              "text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.27')\n" +
+              "text = text.replace(\"print('alpha21 exact overlay, stable watch, district region and icon verified')\\nPY\\n\", \"print('alpha27 assembled source verified')\\nPY\\nrm -rf exported_alpha27_source\\ncp -R \\\"$SOURCE/payload\\\" exported_alpha27_source\\nexit 0\\n\", 1)\n",
+              1,
+          )
+          wrapper = wrapper.replace(
+              '/tmp/build_alpha21_overlay_v2_public.sh',
+              '/tmp/export_alpha27_source_inner.sh',
+          )
+          Path('/tmp/export_alpha27_source.sh').write_text(wrapper, encoding='utf-8')
+          PY
+          chmod +x /tmp/export_alpha27_source.sh
+          bash /tmp/export_alpha27_source.sh
+          test -s exported_alpha27_source/lib/wizard_v4.dart
+          test -s exported_alpha27_source/lib/services.dart
+          test -s exported_alpha27_source/test/wizard_runtime_test.dart
+          tar -czf exported-alpha27-source.tar.gz exported_alpha27_source
+
+      - name: Upload assembled alpha27 source
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha27-assembled-source
+          path: exported-alpha27-source.tar.gz
+          if-no-files-found: error
+          retention-days: 2

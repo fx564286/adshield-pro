@@ -1,0 +1,2 @@
+Export the exact successful Cineseat alpha29 source with matching patch context for alpha30.
+Triggered: 2026-08-05T07:13:00+09:00

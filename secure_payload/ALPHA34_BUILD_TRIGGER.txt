@@ -1,0 +1,1 @@
+Build Cineseat 0.2.1-alpha.34 with CGV official session response capture.

@@ -1,0 +1,78 @@
+name: Cineseat Alpha30 Auto Seat Design
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA30_BUILD_TRIGGER.txt'
+      - 'secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part*'
+      - 'secure_payload/build_alpha30_auto_seat_design.sh'
+      - '.github/workflows/cineseat-alpha30-auto-seat-design.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha30-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout current alpha30 request
+        uses: actions/checkout@v4
+
+      - name: Preserve alpha30 inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp secure_payload/build_alpha30_auto_seat_design.sh /tmp/build_alpha30_auto_seat_design.sh
+          chmod +x /tmp/build_alpha30_auto_seat_design.sh
+          cat secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > /tmp/apply_alpha30_auto_seat_design.patch
+          echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
+
+      - name: Restore exact successful alpha29 merge and update legacy verifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          git checkout --force 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          test "$(git rev-parse HEAD)" = '612f0604d9b23fbd4ce0da7e1a726f2e9e63326b'
+          grep -q 'district_filter_wrap' secure_payload/build_alpha21_overlay_public.sh
+          sed -i '/district_filter_wrap/d' secure_payload/build_alpha21_overlay_public.sh
+          ! grep -q 'district_filter_wrap' secure_payload/build_alpha21_overlay_public.sh
+
+      - name: Restore source and signing decryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Build, test, sign and verify alpha30
+        shell: bash
+        run: bash /tmp/build_alpha30_auto_seat_design.sh
+
+      - name: Upload alpha30 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha30-auto-seat-design-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7

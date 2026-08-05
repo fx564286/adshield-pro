@@ -1,0 +1,2 @@
+Build Cineseat 0.2.1-alpha.33 with seat-map auto-fit, removed large picker, persistent Megabox seat/session cache, background refresh, and CGV public-flow diagnostics.
+Triggered: 2026-08-05T12:35:00+09:00

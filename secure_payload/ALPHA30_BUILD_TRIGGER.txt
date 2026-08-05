@@ -1,0 +1,2 @@
+Build Cineseat 0.2.1-alpha.30 with automatic CGV and Megabox official-seat probes and the redesigned full-width theater picker.
+Triggered: 2026-08-05T07:22:00+09:00

@@ -1,0 +1,23 @@
+--- a/lib/home.dart
++++ b/lib/home.dart
+@@ -46,12 +46,6 @@
+     }
+   }
+ 
+-  @override
+-  void dispose() {
+-    WidgetsBinding.instance.removeObserver(this);
+-    super.dispose();
+-  }
+-
+   Future<void> _addWatch() async {
+     if (!_monetization.initialized) await _monetization.initialize();
+     if (!mounted) return;
+@@ -174,6 +168,7 @@
+ 
+   @override
+   void dispose() {
++    WidgetsBinding.instance.removeObserver(this);
+     _monetization.dispose();
+     super.dispose();
+   }

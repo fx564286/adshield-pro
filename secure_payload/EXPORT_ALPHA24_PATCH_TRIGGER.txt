@@ -1,0 +1,2 @@
+Export reconstructed alpha24 patch for alpha25 unified region and condition redesign.
+Triggered: 2026-08-04T07:43:00+09:00

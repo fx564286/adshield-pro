@@ -1,0 +1,2 @@
+Export the fully assembled alpha28 source for alpha29 Megabox WebView seat extraction, independent filter state, and picker redesign.
+Triggered: 2026-08-05T05:47:00+09:00

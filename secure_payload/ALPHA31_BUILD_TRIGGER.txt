@@ -1,0 +1,2 @@
+Build Cineseat alpha31 with unified region/theater selection and invisible automatic seat probe.
+Triggered: 2026-08-05T08:08:00+09:00
