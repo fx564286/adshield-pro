@@ -21,7 +21,28 @@ if anchor not in text:
     raise SystemExit('alpha36 patch execution anchor missing')
 text = text.replace(
     anchor,
-    anchor + 'python3 /tmp/patch_alpha37_crash_ads.py "$SOURCE"\n',
+    anchor + '''python3 /tmp/patch_alpha37_crash_ads.py "$SOURCE"
+python3 - "$SOURCE/lib/ads.dart" <<'PYADS'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+source = path.read_text(encoding='utf-8')
+source, count = re.subn(
+    r"\n        if \(ready\) \{\n"
+    r"          unawaited\(_rewardedAdService\.load\(\)\);\n"
+    r"          unawaited\(_interstitialAdService\.load\(\)\);\n"
+    r"        \}",
+    "",
+    source,
+    count=1,
+)
+if count != 1:
+    raise SystemExit('alpha37 ad service preload block missing')
+path.write_text(source, encoding='utf-8')
+PYADS
+''',
     1,
 )
 
