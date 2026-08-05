@@ -1,0 +1,1 @@
+Run the alpha36 exact source build using the preserved permanent-signing input.
