@@ -7,6 +7,7 @@ on:
       - 'secure_payload/ALPHA35_BUILD_TRIGGER.txt'
       - 'secure_payload/build_alpha35_expiry_cgv_legacy.sh'
       - 'secure_payload/apply_alpha35_expiry_cgv_legacy.patch.gz.b64.part*'
+      - 'secure_payload/apply_alpha35_home_dispose_fix.patch'
       - '.github/workflows/cineseat-alpha35-expiry-cgv-legacy.yml'
 
 permissions:
@@ -31,6 +32,7 @@ jobs:
           set -euo pipefail
           cp secure_payload/build_alpha35_expiry_cgv_legacy.sh /tmp/build_alpha35_expiry_cgv_legacy.sh
           cp secure_payload/build_alpha30_auto_seat_design.sh /tmp/build_alpha35_base.sh
+          cp secure_payload/apply_alpha35_home_dispose_fix.patch /tmp/apply_alpha35_home_dispose_fix.patch
           chmod +x /tmp/build_alpha35_expiry_cgv_legacy.sh /tmp/build_alpha35_base.sh
           cat secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha30_auto_seat_design.patch
           cat secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64 | base64 --decode | gzip --decompress > /tmp/apply_alpha31_unified_picker_probe.patch
@@ -62,6 +64,7 @@ jobs:
           echo '846ebb0285379e1c8a7c03ae1e5042eeb34fee029cd44d738aa1e172fa884fdc  /tmp/apply_alpha33_seat_cache_fit_cgv.patch' | sha256sum -c -
           echo '89e323c8100933f1a69778b17d6602ac048bdd4d3b244e02478fa8ad4d3075f2  /tmp/apply_alpha34_cgv_session_capture.patch' | sha256sum -c -
           echo '4ceb93306c0b475d5afb80d94db279bf08cdb8ffe8d247aaa458a47a9ceead82  /tmp/apply_alpha35_expiry_cgv_legacy.patch' | sha256sum -c -
+          echo 'b264e7936de8f2e838ee3c1e070c4f8566d096663bab8e1350dbfa1c9e313916  /tmp/apply_alpha35_home_dispose_fix.patch' | sha256sum -c -
 
       - name: Restore exact successful alpha29 merge and update legacy verifier
         shell: bash
