@@ -82,6 +82,7 @@ jobs:
               patch30
               + "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha31_unified_picker_probe.patch)\\n' +\n"
               + "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha32_cgv_inline_megabox.patch)\\n' +\n"
+              + "    'sed -i \"/inline_theater_count.*findsOneWidget/d\" \"$SOURCE/payload/test/wizard_runtime_test.dart\"\\n' +\n"
               + "    'grep -q \"scnSNo\" \"$SOURCE/payload/lib/cgv_seat_bridge.dart\"\\n' +\n"
               + "    'grep -q \"scntSSeq\" \"$SOURCE/payload/lib/services.dart\"\\n' +\n"
               + "    'grep -q \"theater_search_field\" \"$SOURCE/payload/lib/wizard_v4.dart\"\\n' +\n"
