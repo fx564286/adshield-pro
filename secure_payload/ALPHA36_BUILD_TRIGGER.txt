@@ -1,0 +1,1 @@
+Build Cineseat alpha36 from the exact successful alpha35 source with CGV direct API loading and Google test ads enabled.
