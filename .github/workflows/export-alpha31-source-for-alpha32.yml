@@ -5,8 +5,8 @@ on:
     branches: [cineseat-secure-builder]
     paths:
       - 'secure_payload/EXPORT_ALPHA31_FOR_ALPHA32_TRIGGER.txt'
+      - 'secure_payload/export_alpha31_source_for_alpha32.sh'
       - '.github/workflows/export-alpha31-source-for-alpha32.yml'
-      - 'secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64'
 
 permissions:
   contents: read
@@ -19,12 +19,13 @@ jobs:
       - name: Checkout current request
         uses: actions/checkout@v4
 
-      - name: Preserve alpha30 and alpha31 inputs
+      - name: Preserve export inputs
         shell: bash
         run: |
           set -euo pipefail
+          cp secure_payload/export_alpha31_source_for_alpha32.sh /tmp/export_alpha31_source_for_alpha32.sh
           cp secure_payload/build_alpha30_auto_seat_design.sh /tmp/build_alpha31_export.sh
-          chmod +x /tmp/build_alpha31_export.sh
+          chmod +x /tmp/export_alpha31_source_for_alpha32.sh /tmp/build_alpha31_export.sh
           cat secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part* \
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha30_auto_seat_design.patch
@@ -33,68 +34,6 @@ jobs:
             > /tmp/apply_alpha31_unified_picker_probe.patch
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
           echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('/tmp/build_alpha31_export.sh')
-          source = path.read_text(encoding='utf-8')
-          preamble = 'PATCH30="/tmp/apply_alpha30_auto_seat_design.patch"\nDIST='
-          source = source.replace(
-              preamble,
-              'PATCH30="/tmp/apply_alpha30_auto_seat_design.patch"\nPATCH31="/tmp/apply_alpha31_unified_picker_probe.patch"\nDIST=',
-              1,
-          )
-          verify = (
-              'test -s "$PATCH30"\n'
-              "echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -\n"
-          )
-          source = source.replace(
-              verify,
-              verify + 'test -s "$PATCH31"\n' +
-              "echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -\n",
-              1,
-          )
-          patch30 = "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha30_auto_seat_design.patch)\\n' +\n"
-          source = source.replace(
-              patch30,
-              patch30 +
-              "    '(cd \"$SOURCE/payload\" && patch --batch --forward -p1 < /tmp/apply_alpha31_unified_picker_probe.patch)\\n' +\n",
-              1,
-          )
-          source = source.replace('0.2.1-alpha.30', '0.2.1-alpha.31')
-          source = source.replace('run_alpha30_stable', 'run_alpha31_stable')
-          source = source.replace('build_alpha30_overlay', 'build_alpha31_overlay')
-
-          chmod_anchor = 'chmod +x /tmp/run_alpha31_stable.sh\n'
-          if chmod_anchor not in source:
-              raise SystemExit('run script chmod anchor missing')
-          injection = r'''python3 - <<'PYEXPORT'
-from pathlib import Path
-p = Path('/tmp/run_alpha31_stable.sh')
-s = p.read_text(encoding='utf-8')
-needle = "    '(cd \\\"$SOURCE/payload\\\" && patch --batch --forward -p1 < /tmp/apply_alpha31_unified_picker_probe.patch)\\\\n' +\\n"
-if needle not in s:
-    raise SystemExit('alpha31 patch application anchor missing')
-extra = (
-    needle
-    + "    'rm -rf /tmp/exported_alpha31\\\\n' +\\n"
-    + "    'mkdir -p /tmp/exported_alpha31\\\\n' +\\n"
-    + "    'cp -R \\\"$SOURCE/payload/lib\\\" /tmp/exported_alpha31/lib\\\\n' +\\n"
-    + "    'cp -R \\\"$SOURCE/payload/test\\\" /tmp/exported_alpha31/test\\\\n' +\\n"
-    + "    'cp \\\"$SOURCE/payload/app_icon.png\\\" /tmp/exported_alpha31/app_icon.png\\\\n' +\\n"
-    + "    'exit 0\\\\n' +\\n"
-)
-s = s.replace(needle, extra, 1)
-p.write_text(s, encoding='utf-8')
-PYEXPORT
-'''
-          source = source.replace(chmod_anchor, chmod_anchor + injection, 1)
-          run_line = 'bash /tmp/run_alpha31_stable.sh\n'
-          if run_line not in source:
-              raise SystemExit('run script execution anchor missing')
-          source = source.replace(run_line, run_line + 'exit 0\n', 1)
-          path.write_text(source, encoding='utf-8')
-          PY
 
       - name: Restore exact successful alpha29 merge
         shell: bash
@@ -113,14 +52,7 @@ PYEXPORT
 
       - name: Assemble and export alpha31 source
         shell: bash
-        run: |
-          set -euo pipefail
-          bash /tmp/build_alpha31_export.sh
-          test -s /tmp/exported_alpha31/lib/wizard_v4.dart
-          test -s /tmp/exported_alpha31/lib/services.dart
-          test -s /tmp/exported_alpha31/lib/official_seat_web.dart
-          grep -q '지역·영화관 통합 선택' /tmp/exported_alpha31/lib/wizard_v4.dart
-          grep -q 'AutomaticOfficialSeatProbe' /tmp/exported_alpha31/lib/official_seat_web.dart
+        run: bash /tmp/export_alpha31_source_for_alpha32.sh
 
       - name: Upload alpha31 source
         uses: actions/upload-artifact@v4
