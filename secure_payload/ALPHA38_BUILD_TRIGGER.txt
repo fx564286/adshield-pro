@@ -1,0 +1,1 @@
+Build Cineseat alpha38 with MobileAdsInitProvider removed from the merged manifest and manual post-frame AdMob initialization retained.
