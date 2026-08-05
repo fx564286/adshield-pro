@@ -1,0 +1,65 @@
+name: Export Alpha34 Source For Alpha35
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/EXPORT_ALPHA34_FOR_ALPHA35_TRIGGER.txt'
+      - 'secure_payload/export_alpha34_source_for_alpha35.sh'
+      - '.github/workflows/export-alpha34-source-for-alpha35.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout current request
+        uses: actions/checkout@v4
+
+      - name: Preserve export inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp secure_payload/export_alpha34_source_for_alpha35.sh /tmp/export_alpha34_source_for_alpha35.sh
+          cp secure_payload/build_alpha30_auto_seat_design.sh /tmp/build_alpha34_export.sh
+          chmod +x /tmp/export_alpha34_source_for_alpha35.sh /tmp/build_alpha34_export.sh
+          cat secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha30_auto_seat_design.patch
+          cat secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64 | base64 --decode | gzip --decompress > /tmp/apply_alpha31_unified_picker_probe.patch
+          cat secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha32_cgv_inline_megabox.patch
+          cat secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.seg* | base64 --decode | gzip --decompress > /tmp/apply_alpha33_seat_cache_fit_cgv.patch
+          cat secure_payload/apply_alpha34_cgv_session_capture.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha34_cgv_session_capture.patch
+          echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
+          echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
+          echo '575bacd49ed8187d115c1abe21a0110dd4648247e23d3f811affc08b63d8b84f  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -
+          echo '846ebb0285379e1c8a7c03ae1e5042eeb34fee029cd44d738aa1e172fa884fdc  /tmp/apply_alpha33_seat_cache_fit_cgv.patch' | sha256sum -c -
+          echo '89e323c8100933f1a69778b17d6602ac048bdd4d3b244e02478fa8ad4d3075f2  /tmp/apply_alpha34_cgv_session_capture.patch' | sha256sum -c -
+
+      - name: Restore exact successful alpha29 merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          git checkout --force 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          sed -i '/district_filter_wrap/d' secure_payload/build_alpha21_overlay_public.sh
+
+      - name: Restore source decryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - name: Assemble and export alpha34 source
+        shell: bash
+        run: bash /tmp/export_alpha34_source_for_alpha35.sh
+
+      - name: Upload alpha34 source
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha34-source-for-alpha35
+          path: /tmp/exported_alpha34
+          if-no-files-found: error
+          retention-days: 2
