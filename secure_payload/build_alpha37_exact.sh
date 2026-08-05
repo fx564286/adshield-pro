@@ -25,13 +25,12 @@ text = text.replace(
     1,
 )
 
+# Only update release metadata. Keep alpha36 patcher and patch file paths intact.
 text = text.replace('0.2.1-alpha.36', '0.2.1-alpha.37')
 text = text.replace('+56', '+57')
 text = text.replace('--build-number=56', '--build-number=57')
 text = text.replace("versionCode='56'", "versionCode='57'")
 text = text.replace('alpha.36-fixed.apk', 'alpha.37-fixed.apk')
-text = text.replace('alpha36', 'alpha37')
-text = text.replace('Alpha36', 'Alpha37')
 
 report_line = '- Google official test ad unit IDs are used in this validation APK\n'
 text = text.replace(
