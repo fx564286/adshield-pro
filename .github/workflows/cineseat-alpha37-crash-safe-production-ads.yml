@@ -1,0 +1,120 @@
+name: Cineseat Alpha37 Crash Safe Production Ads
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA37_BUILD_TRIGGER.txt'
+      - 'secure_payload/patch_alpha37_crash_ads.py'
+      - 'secure_payload/build_alpha37_exact.sh'
+      - '.github/workflows/cineseat-alpha37-crash-safe-production-ads.yml'
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cineseat-alpha37-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout alpha37 request
+        uses: actions/checkout@v4
+
+      - name: Preserve alpha37, alpha36 and alpha35 reconstruction inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp secure_payload/export_alpha35_source_for_alpha36.sh /tmp/export_alpha35_source_for_alpha36.sh
+          cp secure_payload/build_alpha36_exact.sh /tmp/build_alpha36_exact.sh
+          cp secure_payload/build_alpha37_exact.sh /tmp/build_alpha37_exact.sh
+          cp secure_payload/patch_alpha37_crash_ads.py /tmp/patch_alpha37_crash_ads.py
+          cp secure_payload/patch_alpha36_android.py /tmp/patch_alpha36_android.py
+          cp secure_payload/build_alpha35_expiry_cgv_legacy.sh /tmp/build_alpha35_expiry_cgv_legacy.sh
+          cp secure_payload/build_alpha30_auto_seat_design.sh /tmp/build_alpha35_base.sh
+          cp secure_payload/apply_alpha35_home_dispose_fix.patch /tmp/apply_alpha35_home_dispose_fix.patch
+          chmod +x \
+            /tmp/export_alpha35_source_for_alpha36.sh \
+            /tmp/build_alpha36_exact.sh \
+            /tmp/build_alpha37_exact.sh \
+            /tmp/patch_alpha37_crash_ads.py \
+            /tmp/build_alpha35_expiry_cgv_legacy.sh \
+            /tmp/build_alpha35_base.sh \
+            /tmp/patch_alpha36_android.py
+
+          cat secure_payload/apply_alpha30_auto_seat_design.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha30_auto_seat_design.patch
+          cat secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64 | base64 --decode | gzip --decompress > /tmp/apply_alpha31_unified_picker_probe.patch
+          cat secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha32_cgv_inline_megabox.patch
+          cat secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.seg* | base64 --decode | gzip --decompress > /tmp/apply_alpha33_seat_cache_fit_cgv.patch
+          cat secure_payload/apply_alpha34_cgv_session_capture.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha34_cgv_session_capture.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, glob, gzip
+          paths = sorted(glob.glob('secure_payload/apply_alpha35_expiry_cgv_legacy.patch.gz.b64.part*'))
+          if not paths:
+              raise SystemExit('alpha35 patch chunks missing')
+          encoded = ''.join(Path(p).read_text(encoding='utf-8') for p in paths)
+          encoded = ''.join(ch for ch in encoded if ch.isalnum() or ch in '+/=')
+          Path('/tmp/apply_alpha35_expiry_cgv_legacy.patch').write_bytes(
+              gzip.decompress(base64.b64decode(encoded, validate=True))
+          )
+          PY
+          base64 --decode secure_payload/apply_alpha36_direct_admob.patch.gz.b64 | gzip --decompress > /tmp/apply_alpha36_direct_admob.patch
+
+          echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
+          echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
+          echo '575bacd49ed8187d115c1abe21a0110dd4648247e23d3f811affc08b63d8b84f  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -
+          echo '846ebb0285379e1c8a7c03ae1e5042eeb34fee029cd44d738aa1e172fa884fdc  /tmp/apply_alpha33_seat_cache_fit_cgv.patch' | sha256sum -c -
+          echo '89e323c8100933f1a69778b17d6602ac048bdd4d3b244e02478fa8ad4d3075f2  /tmp/apply_alpha34_cgv_session_capture.patch' | sha256sum -c -
+          echo '4ceb93306c0b475d5afb80d94db279bf08cdb8ffe8d247aaa458a47a9ceead82  /tmp/apply_alpha35_expiry_cgv_legacy.patch' | sha256sum -c -
+          echo 'b264e7936de8f2e838ee3c1e070c4f8566d096663bab8e1350dbfa1c9e313916  /tmp/apply_alpha35_home_dispose_fix.patch' | sha256sum -c -
+          echo '680f89dd32f4ee7cb72df8a4d50542042e175b7e3b91f62b92d17e7985708e84  /tmp/apply_alpha36_direct_admob.patch' | sha256sum -c -
+
+      - name: Restore exact successful secure source base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          git checkout --force 612f0604d9b23fbd4ce0da7e1a726f2e9e63326b
+          test "$(git rev-parse HEAD)" = '612f0604d9b23fbd4ce0da7e1a726f2e9e63326b'
+          sed -i '/district_filter_wrap/d' secure_payload/build_alpha21_overlay_public.sh
+
+      - name: Restore source and signing decryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter 3.44.6
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.6'
+          channel: stable
+          cache: true
+
+      - name: Reconstruct exact alpha35 source
+        shell: bash
+        run: bash /tmp/export_alpha35_source_for_alpha36.sh
+
+      - name: Patch, analyze, test, build and fixed-sign alpha37
+        shell: bash
+        run: bash /tmp/build_alpha37_exact.sh
+
+      - name: Upload alpha37 fixed-signed package
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha37-crash-safe-production-ads-${{ github.run_number }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
