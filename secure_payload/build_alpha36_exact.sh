@@ -60,8 +60,6 @@ if missing:
 print('alpha36 exact source patch verified')
 PY
 
-# Restore the native foreground monitor and boot receiver from the existing
-# encrypted build chain. No signing material is written to the repository.
 mkdir -p "$RUNTIME/native"
 base64 --decode secure_payload/native.key.enc.b64 > "$RUNTIME/native.key.enc"
 openssl pkeyutl -decrypt \
@@ -154,12 +152,10 @@ cp "$BUILD/build/app/outputs/flutter-apk/app-release.apk" "$APK"
 test -s "$APK"
 unzip -tq "$APK"
 
-# Reuse the already validated permanent-signing tail from the successful public
-# builder. The secret values remain in the encrypted legacy runtime only.
 python3 - <<'PY'
 from pathlib import Path
 
-source = Path('secure_payload/build_alpha30_auto_seat_design.sh').read_text(encoding='utf-8')
+source = Path('/tmp/build_alpha35_base.sh').read_text(encoding='utf-8')
 marker = 'mkdir -p "$RUNTIME"\n'
 if marker not in source:
     raise SystemExit('fixed-signing tail marker missing')
@@ -184,6 +180,8 @@ chmod +x /tmp/sign_alpha36_fixed.sh
 bash /tmp/sign_alpha36_fixed.sh
 
 TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+"$TOOLS/aapt" dump badging "$APK" | tee "$DIST/APK-PACKAGE-INFO.txt"
+"$TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee "$DIST/APK-SIGNATURE.txt"
 "$TOOLS/aapt" dump permissions "$APK" | tee "$DIST/APK-PERMISSIONS.txt"
 "$TOOLS/aapt" dump xmltree "$APK" AndroidManifest.xml | tee "$DIST/APK-MANIFEST.txt"
 grep -q 'com.google.android.gms.permission.AD_ID' "$DIST/APK-PERMISSIONS.txt"
