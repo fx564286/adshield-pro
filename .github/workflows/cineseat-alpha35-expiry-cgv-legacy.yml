@@ -37,7 +37,25 @@ jobs:
           cat secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha32_cgv_inline_megabox.patch
           cat secure_payload/apply_alpha33_seat_cache_fit_cgv.patch.gz.b64.seg* | base64 --decode | gzip --decompress > /tmp/apply_alpha33_seat_cache_fit_cgv.patch
           cat secure_payload/apply_alpha34_cgv_session_capture.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha34_cgv_session_capture.patch
-          cat secure_payload/apply_alpha35_expiry_cgv_legacy.patch.gz.b64.part* | base64 --decode | gzip --decompress > /tmp/apply_alpha35_expiry_cgv_legacy.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+          import gzip
+          import glob
+          import hashlib
+
+          paths = sorted(glob.glob('secure_payload/apply_alpha35_expiry_cgv_legacy.patch.gz.b64.part*'))
+          if not paths:
+              raise SystemExit('alpha35 patch chunks missing')
+          encoded = ''.join(Path(path).read_text(encoding='utf-8') for path in paths)
+          encoded = ''.join(ch for ch in encoded if ch.isalnum() or ch in '+/=')
+          print('alpha35 patch chunks:', len(paths), 'base64 chars:', len(encoded))
+          print('alpha35 encoded sha256:', hashlib.sha256(encoded.encode()).hexdigest())
+          if hashlib.sha256(encoded.encode()).hexdigest() != 'c526cbf6a888f22cef4bdb27b598fcfd2945052cc1323c7e857e525478daded7':
+              raise SystemExit('alpha35 base64 aggregate mismatch')
+          raw = base64.b64decode(encoded, validate=True)
+          Path('/tmp/apply_alpha35_expiry_cgv_legacy.patch').write_bytes(gzip.decompress(raw))
+          PY
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
           echo 'bd81901efc6e07ea30f8d9667a608d0a46d5fcefafc9a0a69e2c4550d9311f03  /tmp/apply_alpha31_unified_picker_probe.patch' | sha256sum -c -
           echo '575bacd49ed8187d115c1abe21a0110dd4648247e23d3f811affc08b63d8b84f  /tmp/apply_alpha32_cgv_inline_megabox.patch' | sha256sum -c -
