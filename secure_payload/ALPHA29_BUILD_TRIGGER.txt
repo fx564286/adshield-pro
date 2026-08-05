@@ -1,0 +1,2 @@
+Build Cineseat 0.2.1-alpha.29 with exact screening-end cleanup, app-resume pruning, CGV guest-session seat loading, and related reliability fixes.
+Triggered: 2026-08-05T17:35:00+09:00

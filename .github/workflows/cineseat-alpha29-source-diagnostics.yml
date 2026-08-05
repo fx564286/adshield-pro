@@ -1,0 +1,137 @@
+name: Cineseat Alpha29 Source Diagnostics
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/ALPHA29_DIAGNOSTIC_TRIGGER.txt'
+      - 'secure_payload/alpha29_source_diagnostics.sh'
+      - '.github/workflows/cineseat-alpha29-source-diagnostics.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct alpha28 patch chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha22_seat_ui_fix.py
+          cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha23_ui_cache.py
+          cat secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha25_alpha19_region_condition.py
+          cat secure_payload/apply_alpha26_unified_filters_seat_icon.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          cat secure_payload/apply_alpha27_picker_cgv.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha27_picker_cgv.py
+          base64 --decode secure_payload/apply_alpha28_region_seat_reliability.py.gz.b64 \
+            | gzip --decompress \
+            > secure_payload/apply_alpha28_region_seat_reliability.py
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+          python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
+          python3 -m py_compile secure_payload/apply_alpha25_alpha19_region_condition.py
+          python3 -m py_compile secure_payload/apply_alpha26_unified_filters_seat_icon.py
+          python3 -m py_compile secure_payload/apply_alpha26_key_compat.py
+          python3 -m py_compile secure_payload/apply_alpha27_picker_cgv.py
+          python3 -m py_compile secure_payload/apply_alpha27_legacy_verifier_compat.py
+          python3 -m py_compile secure_payload/apply_alpha28_region_seat_reliability.py
+
+      - name: Prepare diagnostic source assembler
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable home addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha25_alpha19_region_condition.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha26_unified_filters_seat_icon.py "$SOURCE/payload"\n' +
+              'printf "\\n// Cineseat 0.2.1-alpha.28\\n" >> "$SOURCE/payload/lib/wizard_v4.dart"\n',
+              1,
+          )
+
+          after_polish_anchor = "PYFIX\n'''"
+          if after_polish_anchor not in wrapper:
+              raise SystemExit('region polish completion anchor missing')
+          wrapper = wrapper.replace(
+              after_polish_anchor,
+              'PYFIX\n' +
+              'python3 secure_payload/apply_alpha26_key_compat.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha27_picker_cgv.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha27_legacy_verifier_compat.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha28_region_seat_reliability.py "$SOURCE/payload"\n' +
+              "'''",
+              1,
+          )
+
+          text_anchor = "text = source.read_text(encoding='utf-8')\n"
+          if text_anchor not in wrapper:
+              raise SystemExit('underlying builder text anchor missing')
+          wrapper = wrapper.replace(
+              text_anchor,
+              text_anchor +
+              "text = text.replace('0.2.1-alpha.21', '0.2.1-alpha.28')\n" +
+              "text = text.replace('version: 0.2.1-alpha.28+41', 'version: 0.2.1-alpha.28+48')\n" +
+              "text = text.replace('--build-number=41', '--build-number=48')\n" +
+              "text = text.replace(\"versionCode='41'\", \"versionCode='48'\")\n" +
+              "text = text.replace('  http: ^1.4.0\\n', '  http: ^1.4.0\\n  crypto: ^3.0.7\\n', 1)\n" +
+              "text = text.replace('# Restore the encrypted foreground monitor and boot receiver.\\n', Path('secure_payload/alpha29_source_diagnostics.sh').read_text(encoding='utf-8') + '\\n# Restore the encrypted foreground monitor and boot receiver.\\n', 1)\n",
+              1,
+          )
+          wrapper = wrapper.replace(
+              '/tmp/build_alpha21_overlay_v2_public.sh',
+              '/tmp/build_alpha29_diagnostic_source.sh',
+          )
+          Path('/tmp/run_alpha29_diagnostics.sh').write_text(wrapper, encoding='utf-8')
+          PY
+          chmod +x /tmp/run_alpha29_diagnostics.sh
+
+      - name: Restore source decryption key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - name: Assemble exact alpha28 selected source
+        shell: bash
+        run: bash /tmp/run_alpha29_diagnostics.sh
+
+      - name: Upload exact alpha28 selected source
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha28-selected-source
+          path: alpha28_selected_source
+          retention-days: 2
+          if-no-files-found: error

@@ -1,0 +1,113 @@
+name: Export Alpha25 Assembled Selected Source
+
+on:
+  pull_request:
+    branches: [cineseat-secure-builder]
+    paths:
+      - 'secure_payload/EXPORT_ALPHA25_ASSEMBLED_TRIGGER.txt'
+      - '.github/workflows/export-alpha25-assembled-selected.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct alpha25 patch chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part00 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part01 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part02 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03a \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part03b \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part04 \
+            secure_payload/apply_alpha22_seat_ui_fix.py.gz.b64.part05 \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha22_seat_ui_fix.py
+          cat secure_payload/apply_alpha23_ui_cache.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha23_ui_cache.py
+          cat secure_payload/apply_alpha25_alpha19_region_condition.py.gz.b64.part* \
+            | base64 --decode | gzip --decompress \
+            > secure_payload/apply_alpha25_alpha19_region_condition.py
+          python3 -m py_compile secure_payload/apply_alpha22_seat_ui_fix.py
+          python3 -m py_compile secure_payload/apply_alpha22_booking_helper_fix.py
+          python3 -m py_compile secure_payload/apply_alpha23_ui_cache.py
+          python3 -m py_compile secure_payload/apply_alpha25_alpha19_region_condition.py
+
+      - name: Prepare source-only alpha25 wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('secure_payload/build_alpha21_overlay_v2_public.sh')
+          wrapper = source.read_text(encoding='utf-8')
+          addon_anchor = 'rm -f "$SOURCE/payload/test/alpha20_runtime_test.dart"\n'
+          if addon_anchor not in wrapper:
+              raise SystemExit('stable home addon anchor missing')
+          wrapper = wrapper.replace(
+              addon_anchor,
+              addon_anchor +
+              'python3 secure_payload/apply_alpha22_seat_ui_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha22_booking_helper_fix.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha23_ui_cache.py "$SOURCE/payload"\n' +
+              'python3 secure_payload/apply_alpha25_alpha19_region_condition.py "$SOURCE/payload"\n' +
+              'printf "\\n// Cineseat 0.2.1-alpha.25\\n" >> "$SOURCE/payload/lib/wizard_v4.dart"\n',
+              1,
+          )
+
+          after_fix_anchor = "PYFIX\n'''\n"
+          if after_fix_anchor not in wrapper:
+              raise SystemExit('region polish completion anchor missing')
+          export_block = (
+              'PYFIX\n'
+              'rm -rf exported_source\n'
+              'mkdir -p exported_source\n'
+              'cp -R "$SOURCE/payload/lib" exported_source/lib\n'
+              'cp -R "$SOURCE/payload/test" exported_source/test\n'
+              'cp "$SOURCE/payload/app_icon.png" exported_source/app_icon.png\n'
+              'exit 0\n'
+              "'''\n"
+          )
+          wrapper = wrapper.replace(after_fix_anchor, export_block, 1)
+          Path('/tmp/run_alpha25_source_export.sh').write_text(wrapper, encoding='utf-8')
+          PY
+          chmod +x /tmp/run_alpha25_source_export.sh
+
+      - name: Restore runner-only RSA key
+        uses: actions/cache@v4
+        with:
+          path: secure_runtime/private.pem
+          key: cineseat-secure-builder-key-v1
+          fail-on-cache-miss: true
+
+      - name: Assemble selected alpha25 source
+        shell: bash
+        run: bash /tmp/run_alpha25_source_export.sh
+
+      - name: Verify selected source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s exported_source/lib/wizard_v4.dart
+          test -s exported_source/lib/home.dart
+          test -s exported_source/app_icon.png
+          grep -q "0.2.1-alpha.25" exported_source/lib/wizard_v4.dart
+          find exported_source/lib -maxdepth 1 -type f -print | sort
+
+      - name: Upload selected source
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpha25-assembled-selected-source
+          path: exported_source
+          if-no-files-found: error
+          retention-days: 2
