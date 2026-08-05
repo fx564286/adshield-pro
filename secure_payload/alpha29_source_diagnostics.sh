@@ -1,5 +1,5 @@
-# Stop after the fully patched Dart source is assembled and write only
-# narrow, non-secret excerpts for later GitHub Actions annotation steps.
+# Stop after the fully patched Dart source is assembled and expose only
+# focused, non-secret excerpts through three GitHub Actions annotations.
 python3 - "$SOURCE/payload" "$ROOT/secure_runtime" <<'PYDIAG'
 from pathlib import Path
 import re
@@ -15,9 +15,10 @@ def numbered(lines, start, end):
     return '\n'.join(f'{i + 1}: {lines[i]}' for i in range(start, end))
 
 
-def collect(title, patterns, before=10, after=55, max_blocks=16, max_chars=52000):
+def collect(title, patterns, before=10, after=55, max_blocks=16, max_chars=46000):
     blocks = []
     seen = set()
+    total = 0
     for path in files:
         lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
         for index, line in enumerate(lines):
@@ -25,17 +26,26 @@ def collect(title, patterns, before=10, after=55, max_blocks=16, max_chars=52000
                 continue
             start = max(0, index - before)
             end = min(len(lines), index + after)
-            text = f'===== {path.relative_to(root).as_posix()} @ {index + 1} =====\n' + numbered(lines, start, end)
             signature = (path.as_posix(), start, end)
             if signature in seen:
                 continue
             seen.add(signature)
-            blocks.append(text)
-            if len(blocks) >= max_blocks or sum(len(value) for value in blocks) >= max_chars:
+            text = f'===== {path.relative_to(root).as_posix()} @ {index + 1} =====\n' + numbered(lines, start, end)
+            if total + len(text) > max_chars and blocks:
                 break
-        if len(blocks) >= max_blocks or sum(len(value) for value in blocks) >= max_chars:
+            blocks.append(text)
+            total += len(text)
+            if len(blocks) >= max_blocks:
+                break
+        if len(blocks) >= max_blocks or total >= max_chars:
             break
     return f'{title}\n\n' + '\n\n'.join(blocks)
+
+
+def escape(value):
+    return (value.replace('%', '%25')
+                 .replace('\r', '%0D')
+                 .replace('\n', '%0A'))
 
 expiry = collect(
     'WATCH EXPIRY AND LIFECYCLE',
@@ -48,6 +58,7 @@ expiry = collect(
     before=14,
     after=80,
     max_blocks=14,
+    max_chars=44000,
 )
 
 storage = collect(
@@ -59,7 +70,7 @@ storage = collect(
     before=10,
     after=55,
     max_blocks=10,
-    max_chars=36000,
+    max_chars=30000,
 )
 
 cgv = collect(
@@ -72,13 +83,18 @@ cgv = collect(
     ],
     before=16,
     after=95,
-    max_blocks=20,
-    max_chars=58000,
+    max_blocks=18,
+    max_chars=50000,
 )
 
-(out / 'diag_expiry.txt').write_text(expiry, encoding='utf-8')
-(out / 'diag_storage.txt').write_text(storage, encoding='utf-8')
-(out / 'diag_cgv.txt').write_text(cgv, encoding='utf-8')
-print('diagnostic excerpt files prepared')
+reports = {
+    'WATCH_EXPIRY_DETAIL': expiry,
+    'WATCH_STORAGE_DETAIL': storage,
+    'CGV_FLOW_DETAIL': cgv,
+}
+for title, content in reports.items():
+    (out / f'{title.lower()}.txt').write_text(content, encoding='utf-8')
+    print(f'::warning file=.github,line=1,title={title}::{escape(content)}')
+print('focused diagnostic excerpts emitted')
 PYDIAG
 exit 0
