@@ -1,0 +1,2 @@
+Export assembled Cineseat 0.2.1-alpha.32 source for alpha33 seat viewport, cache and CGV flow work.
+Triggered: 2026-08-05T12:12:00+09:00
