@@ -1,3 +1,3 @@
 Build Cineseat 0.2.1-alpha.32 with canonical CGV showtime parameters, immediately visible theater list, and coordinate-faithful Megabox seat layout.
-Triggered: 2026-08-05T09:57:00+09:00
-Patch storage: verified four-part reconstruction.
+Triggered: 2026-08-05T10:04:00+09:00
+Validation: keep functional scroll/card tests and remove initial-frame count assertion.
