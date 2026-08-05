@@ -5,7 +5,7 @@ on:
     branches: [cineseat-secure-builder]
     paths:
       - 'secure_payload/ALPHA32_BUILD_TRIGGER.txt'
-      - 'secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64'
+      - 'secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64.part*'
       - '.github/workflows/cineseat-alpha32-cgv-inline-megabox.yml'
 
 permissions:
@@ -36,7 +36,7 @@ jobs:
           cat secure_payload/apply_alpha31_unified_picker_probe.patch.gz.b64 \
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha31_unified_picker_probe.patch
-          cat secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64 \
+          cat secure_payload/apply_alpha32_cgv_inline_megabox.patch.gz.b64.part* \
             | base64 --decode | gzip --decompress \
             > /tmp/apply_alpha32_cgv_inline_megabox.patch
           echo 'daf4faadeaf2bcf4dce36ce4d3a7322eeb5b908f8c9b6efb08d5cc48cf050a21  /tmp/apply_alpha30_auto_seat_design.patch' | sha256sum -c -
