@@ -124,6 +124,14 @@ jobs:
           key: cineseat-secure-builder-key-v1
           fail-on-cache-miss: true
 
-      - name: Emit relevant source excerpts
+      - name: Assemble exact alpha28 selected source
         shell: bash
         run: bash /tmp/run_alpha29_diagnostics.sh
+
+      - name: Upload exact alpha28 selected source
+        uses: actions/upload-artifact@v4
+        with:
+          name: cineseat-alpha28-selected-source
+          path: alpha28_selected_source
+          retention-days: 2
+          if-no-files-found: error
