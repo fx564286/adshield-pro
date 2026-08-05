@@ -1,20 +1,15 @@
 name: Cineseat Alpha37 Crash Safe Production Ads
 
 on:
-  pull_request:
-    branches: [cineseat-secure-builder]
-    paths:
-      - 'secure_payload/ALPHA37_BUILD_TRIGGER.txt'
-      - 'secure_payload/patch_alpha37_crash_ads.py'
-      - 'secure_payload/build_alpha37_exact.sh'
-      - '.github/workflows/cineseat-alpha37-crash-safe-production-ads.yml'
+  push:
+    branches: [cineseat-alpha37-delivery]
 
 permissions:
   contents: read
   actions: write
 
 concurrency:
-  group: cineseat-alpha37-${{ github.event.pull_request.number }}
+  group: cineseat-alpha37-delivery
   cancel-in-progress: true
 
 jobs:
