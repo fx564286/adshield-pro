@@ -1,0 +1,1 @@
+Build Cineseat alpha39 with all Google Mobile Ads code, dependency, permission, metadata, provider, activity and ad identifiers removed while retaining CGV direct seat support.
