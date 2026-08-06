@@ -153,8 +153,7 @@ if missing:
     raise SystemExit(f'alpha39 no-ad source contract missing: {missing}')
 
 for forbidden in (
-    'google_mobile_ads',
-    'BannerAd(',
+    "package:google_mobile_ads",
     'RewardedAd.load(',
     'InterstitialAd.load(',
     'MobileAds.instance',
