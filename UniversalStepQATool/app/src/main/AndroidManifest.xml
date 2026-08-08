@@ -3,7 +3,6 @@
 
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
-    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
@@ -24,8 +23,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Health Connect is deliberately isolated in a secondary process.
-             A provider/device-specific failure here must not terminate the sensor core process. -->
         <activity
             android:name=".HealthConnectActivity"
             android:exported="false"
