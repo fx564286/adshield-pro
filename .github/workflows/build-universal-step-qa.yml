@@ -5,7 +5,7 @@ on:
     branches:
       - chatgpt-universal-step-apk-20260808
     paths:
-      - 'universal_step_build/**'
+      - 'UniversalStepQATool/**'
       - '.github/workflows/build-universal-step-qa.yml'
   workflow_dispatch:
 
@@ -40,15 +40,8 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Restore project
-        shell: bash
-        run: |
-          base64 -d universal_step_build/UniversalStepQATool_source.zip.b64 > /tmp/UniversalStepQATool_source.zip
-          rm -rf HuaweiHealthQATool
-          unzip -q /tmp/UniversalStepQATool_source.zip
-
       - name: Build debug APK
-        working-directory: HuaweiHealthQATool
+        working-directory: UniversalStepQATool
         shell: bash
         run: gradle --no-daemon --stacktrace assembleDebug
 
@@ -56,7 +49,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp HuaweiHealthQATool/app/build/outputs/apk/debug/app-debug.apk dist/UniversalStepQATool-debug.apk
+          cp UniversalStepQATool/app/build/outputs/apk/debug/app-debug.apk dist/UniversalStepQATool-debug.apk
           sha256sum dist/UniversalStepQATool-debug.apk | tee dist/UniversalStepQATool-debug.apk.sha256
           ls -lh dist
 
