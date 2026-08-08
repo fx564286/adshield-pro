@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Required by the Health Connect APK provider on Android 13 and earlier. -->
+    <array name="health_permissions">
+        <item>androidx.health.permission.Steps.READ</item>
+    </array>
+</resources>
