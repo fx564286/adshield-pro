@@ -11,8 +11,8 @@ android {
         applicationId "com.example.universalstepqatool"
         minSdk 26
         targetSdk 35
-        versionCode 5
-        versionName "4.1-process-isolated"
+        versionCode 6
+        versionName "5.0-permission-review"
     }
 
     buildTypes {
