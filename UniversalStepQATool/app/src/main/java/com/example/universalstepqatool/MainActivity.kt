@@ -28,6 +28,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val FALLBACK_REFRACTORY_NS = 280_000_000L
         private const val UI_REFRESH_MS = 250L
         private const val AUTO_QA_INTERVAL_MS = 600L
+        private const val VIRTUAL_SHAKE_INTERVAL_MS = 120L
         private const val PREFS = "qa_state"
         private const val PREF_LOCAL_STEPS = "local_steps"
     }
@@ -48,6 +49,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var logView: TextView
     private lateinit var sensorButton: Button
     private lateinit var autoButton: Button
+    private lateinit var virtualShakeButton: Button
 
     private var latestStepCounter: Float? = null
     private var detectorEvents = 0
@@ -59,7 +61,17 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var lastFallbackStepNs = 0L
     private var lastUiRefreshMs = 0L
 
+    // Internal-only synthetic acceleration state. These samples never enter Android SensorManager.
+    private var virtualShakeRunning = false
+    private var virtualShakePhase = 0
+    private var virtualAccelMagnitude = 9.81
+    private var virtualGravityEstimate = 9.81
+    private var virtualFilteredDynamic = 0.0
+    private var virtualLastStepNs = 0L
+    private var virtualDetectedSteps = 0
+
     private val mainHandler = Handler(Looper.getMainLooper())
+
     private var autoQaRunning = false
     private val autoQaTick = object : Runnable {
         override fun run() {
@@ -68,6 +80,26 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             persistLocalCount()
             renderLocalCount()
             mainHandler.postDelayed(this, AUTO_QA_INTERVAL_MS)
+        }
+    }
+
+    private val virtualShakeTick = object : Runnable {
+        override fun run() {
+            if (!virtualShakeRunning) return
+
+            // One walking-like pulse approximately every 600 ms (~100/min).
+            // Values are app-internal test samples, not hardware sensor injection.
+            val magnitude = when (virtualShakePhase) {
+                0 -> 9.81
+                1 -> 14.80
+                2 -> 8.70
+                3 -> 11.20
+                else -> 9.81
+            }
+            processVirtualAccelerationSample(magnitude, SystemClock.elapsedRealtimeNanos())
+            virtualShakePhase = (virtualShakePhase + 1) % 5
+            renderSensorValues(force = false)
+            mainHandler.postDelayed(this, VIRTUAL_SHAKE_INTERVAL_MS)
         }
     }
 
@@ -100,6 +132,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         logView = findViewById(R.id.logView)
         sensorButton = findViewById(R.id.sensorButton)
         autoButton = findViewById(R.id.autoButton)
+        virtualShakeButton = findViewById(R.id.virtualShakeButton)
 
         localQaSteps = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(PREF_LOCAL_STEPS, 0)
 
@@ -115,10 +148,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         renderLocalCount()
         renderSensorValues(force = true)
 
-        log("앱 시작: v5 권한/센서 리뷰 안정화판")
+        log("앱 시작: v8 덮어쓰기/가상가속도 QA판")
         log("패키지: com.example.universalstepqatool")
         log("활동 인식 권한이 없어도 가속도계 폴백이 차단되지 않습니다.")
-        log("자동 QA 카운터는 이 앱 내부 테스트 값만 증가시킵니다.")
+        log("가상 흔들림은 앱 내부 필터에만 합성 샘플을 공급합니다.")
     }
 
     override fun onResume() {
@@ -133,6 +166,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         sensorButton.setOnClickListener {
             safeUi("센서 시작/중지") {
                 if (sensorListening) stopSensors() else requestAndStartSensors()
+            }
+        }
+        virtualShakeButton.setOnClickListener {
+            safeUi("가상 흔들림 QA") {
+                if (virtualShakeRunning) stopVirtualShakeQa() else startVirtualShakeQa()
             }
         }
         autoButton.setOnClickListener {
@@ -151,6 +189,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 localQaSteps = 0
                 detectorEvents = 0
                 fallbackAccelSteps = 0
+                virtualDetectedSteps = 0
+                virtualAccelMagnitude = 9.81
+                virtualGravityEstimate = 9.81
+                virtualFilteredDynamic = 0.0
+                virtualLastStepNs = 0L
                 persistLocalCount()
                 renderLocalCount()
                 renderSensorValues(force = true)
@@ -172,6 +215,51 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         log("[QA] 로컬 테스트 카운트 +$count → $localQaSteps")
     }
 
+    private fun startVirtualShakeQa() {
+        if (virtualShakeRunning) return
+        virtualShakeRunning = true
+        virtualShakePhase = 0
+        virtualGravityEstimate = 9.81
+        virtualFilteredDynamic = 0.0
+        virtualLastStepNs = 0L
+        virtualShakeButton.text = "가상 흔들림 QA 중지"
+        statusView.text = "상태: 가상 가속도 QA 실행 중"
+        log("[가상센서] 시작: 앱 내부 합성 가속도 샘플, 약 100 pulse/분")
+        log("[가상센서] Android SensorManager/다른 앱의 센서 값은 변경하지 않습니다.")
+        mainHandler.removeCallbacks(virtualShakeTick)
+        mainHandler.post(virtualShakeTick)
+        renderSensorValues(force = true)
+    }
+
+    private fun stopVirtualShakeQa() {
+        virtualShakeRunning = false
+        mainHandler.removeCallbacks(virtualShakeTick)
+        virtualShakeButton.text = "2. 가상 흔들림 QA 시작"
+        statusView.text = "상태: 가상 가속도 QA 중지"
+        log("[가상센서] 중지 / 감지=$virtualDetectedSteps")
+        renderSensorValues(force = true)
+    }
+
+    private fun processVirtualAccelerationSample(magnitude: Double, timestampNs: Long) {
+        virtualAccelMagnitude = magnitude
+        virtualGravityEstimate = virtualGravityEstimate * 0.90 + magnitude * 0.10
+        val dynamic = magnitude - virtualGravityEstimate
+        virtualFilteredDynamic = virtualFilteredDynamic * 0.65 + dynamic * 0.35
+
+        if (virtualFilteredDynamic > FALLBACK_THRESHOLD &&
+            timestampNs - virtualLastStepNs > FALLBACK_REFRACTORY_NS
+        ) {
+            virtualDetectedSteps++
+            virtualLastStepNs = timestampNs
+            localQaSteps++
+            persistLocalCount()
+            renderLocalCount()
+            if (virtualDetectedSteps % 10 == 0) {
+                log("[가상센서] 감지 $virtualDetectedSteps / 로컬 QA=$localQaSteps")
+            }
+        }
+    }
+
     private fun startAutoQa() {
         if (autoQaRunning) return
         autoQaRunning = true
@@ -185,7 +273,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun stopAutoQa() {
         autoQaRunning = false
         mainHandler.removeCallbacks(autoQaTick)
-        autoButton.text = "2. 자동 QA 카운터 시작"
+        autoButton.text = "3. 자동 QA 카운터 시작"
         statusView.text = "상태: 자동 QA 카운터 중지"
         log("[QA] 자동 카운터 중지 → $localQaSteps 보")
     }
@@ -219,6 +307,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         log("STEP_COUNTER: ${describeSensor(stepCounterSensor)}")
         log("STEP_DETECTOR: ${describeSensor(stepDetectorSensor)}")
         log("ACCELEROMETER: ${describeSensor(accelerometer)}")
+        log("가상 흔들림 QA: ${if (virtualShakeRunning) "실행 중" else "중지"} / 감지=$virtualDetectedSteps")
         log("자동 QA 카운터: ${if (autoQaRunning) "실행 중" else "중지"}")
         log("로컬 QA 값: $localQaSteps")
         log("UI 이벤트: 정상")
@@ -340,6 +429,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         localCountView.text = buildString {
             append("앱 내부 QA 테스트 카운트: $localQaSteps 보")
             if (autoQaRunning) append("  (자동 증가 중)")
+            if (virtualShakeRunning) append("  (가상 흔들림 중)")
         }
     }
 
@@ -353,10 +443,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             appendLine("  등록: $registeredStepCounter / 부팅 이후 누적값: ${latestStepCounter ?: "미수신"}")
             appendLine("STEP_DETECTOR: ${describeSensor(stepDetectorSensor)}")
             appendLine("  등록: $registeredStepDetector / 진단 이벤트: $detectorEvents")
-            appendLine("ACCELEROMETER: ${describeSensor(accelerometer)}")
+            appendLine("ACCELEROMETER(실제): ${describeSensor(accelerometer)}")
             appendLine("  등록: $registeredAccelerometer / |a|: ${"%.3f".format(Locale.US, latestAccelMagnitude)} m/s²")
-            appendLine("  가속도 폴백 계수: $fallbackAccelSteps")
-            append("진단 상태: ${if (sensorListening) "실행 중" else "중지"}")
+            appendLine("  실제 가속도 폴백 계수: $fallbackAccelSteps")
+            appendLine("ACCELEROMETER(가상 QA): ${if (virtualShakeRunning) "실행 중" else "중지"}")
+            appendLine("  합성 |a|: ${"%.3f".format(Locale.US, virtualAccelMagnitude)} m/s²")
+            appendLine("  동일 필터 감지: $virtualDetectedSteps")
+            append("실제 센서 진단: ${if (sensorListening) "실행 중" else "중지"}")
         }
     }
 
@@ -371,7 +464,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onDestroy() {
         autoQaRunning = false
+        virtualShakeRunning = false
         mainHandler.removeCallbacks(autoQaTick)
+        mainHandler.removeCallbacks(virtualShakeTick)
         try {
             if (::sensorManager.isInitialized) sensorManager.unregisterListener(this)
         } catch (_: Throwable) {
