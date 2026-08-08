@@ -34,7 +34,7 @@ jobs:
         shell: bash
         run: |
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager 'platforms;android-33' 'build-tools;33.0.2'
+          sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -47,6 +47,7 @@ jobs:
           base64 -d huawei_health_qa_build/HuaweiHealthQATool_source.zip.b64 > /tmp/HuaweiHealthQATool_source.zip
           rm -rf HuaweiHealthQATool
           unzip -q /tmp/HuaweiHealthQATool_source.zip
+          sed -i 's/compileSdk 33/compileSdk 34/' HuaweiHealthQATool/app/build.gradle
           sed -i 's/^HUAWEI_APP_ID=.*/HUAWEI_APP_ID=000000000000000/' HuaweiHealthQATool/gradle.properties
           find HuaweiHealthQATool -maxdepth 3 -type f -print
 
