@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Health Connect 연동"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/hcStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="상태: 확인 전"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="이 화면의 권한 요청 버튼만 시스템 Health Connect 화면을 열 수 있습니다. 조회/기록/검증 버튼은 권한이 없으면 앱 안에서 안내만 합니다." />
+
+        <Button
+            android:id="@+id/hcCheckButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="0. Health Connect 상태 확인" />
+
+        <Button
+            android:id="@+id/hcPermissionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. 읽기/쓰기 권한 요청" />
+
+        <Button
+            android:id="@+id/hcReadButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. 오늘 걸음 조회" />
+
+        <EditText
+            android:id="@+id/hcStepsInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="기록할 테스트 걸음 수"
+            android:inputType="number"
+            android:text="1000" />
+
+        <EditText
+            android:id="@+id/hcDurationInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="테스트 구간(분)"
+            android:inputType="number"
+            android:text="10" />
+
+        <Button
+            android:id="@+id/hcWriteButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3. 테스트 걸음 기록" />
+
+        <Button
+            android:id="@+id/hcPrecisionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="4. 기준값 → 기록 → 재조회" />
+
+        <Button
+            android:id="@+id/hcBackButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="메인 화면으로 돌아가기" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="연동 로그"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/hcLog"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="180dp"
+            android:paddingTop="6dp"
+            android:textIsSelectable="true"
+            android:textSize="13sp"
+            android:typeface="monospace" />
+
+    </LinearLayout>
+</ScrollView>
