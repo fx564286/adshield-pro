@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <!-- Android 14+ framework Health Connect permission. -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
 
     <!-- Health Connect APK provider on Android 13 and earlier. -->
@@ -24,23 +25,24 @@
             </intent-filter>
         </activity>
 
-        <!-- Keep the Health Connect permission requester in the main app process.
-             The Activity Result permission contract is designed to be launched from a normal foreground Activity. -->
+        <!-- Permission requests stay in the normal foreground process. -->
         <activity
             android:name=".HealthConnectActivity"
             android:exported="false" />
 
-        <!-- Official Health Connect permission rationale entry point for Android 13 and earlier. -->
+        <!-- Android 13 and earlier: rationale + legacy permission metadata. -->
         <activity
             android:name=".PermissionsRationaleActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
+            <meta-data
+                android:name="health_permissions"
+                android:resource="@array/health_permissions" />
         </activity>
 
-        <!-- Official Android 14+ permission-usage entry point.
-             Android documentation requires an activity-alias targeting the rationale Activity. -->
+        <!-- Android 14+: official VIEW_PERMISSION_USAGE alias. -->
         <activity-alias
             android:name=".ViewPermissionUsageActivity"
             android:exported="true"
