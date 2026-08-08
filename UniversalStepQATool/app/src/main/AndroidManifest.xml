@@ -2,10 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
-    <!-- Android 14+ framework Health Connect permission. -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
 
-    <!-- Health Connect APK provider on Android 13 and earlier. -->
+    <permission
+        android:name="com.example.universalstepqatool.permission.READ_QA_ACCEL"
+        android:protectionLevel="signature" />
+
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
     </queries>
@@ -25,12 +27,10 @@
             </intent-filter>
         </activity>
 
-        <!-- Permission requests stay in the normal foreground process. -->
         <activity
             android:name=".HealthConnectActivity"
             android:exported="false" />
 
-        <!-- Android 13 and earlier: rationale + legacy permission metadata. -->
         <activity
             android:name=".PermissionsRationaleActivity"
             android:exported="true">
@@ -42,7 +42,6 @@
                 android:resource="@array/health_permissions" />
         </activity>
 
-        <!-- Android 14+: official VIEW_PERMISSION_USAGE alias. -->
         <activity-alias
             android:name=".ViewPermissionUsageActivity"
             android:exported="true"
@@ -53,6 +52,13 @@
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity-alias>
+
+        <provider
+            android:name=".VirtualAccelProvider"
+            android:authorities="com.example.universalstepqatool.qaaccel"
+            android:exported="true"
+            android:readPermission="com.example.universalstepqatool.permission.READ_QA_ACCEL"
+            android:grantUriPermissions="false" />
 
     </application>
 </manifest>
