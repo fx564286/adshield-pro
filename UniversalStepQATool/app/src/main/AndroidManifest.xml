@@ -24,9 +24,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Health Connect is deliberately isolated in a secondary process.
+             A provider/device-specific failure here must not terminate the sensor core process. -->
         <activity
             android:name=".HealthConnectActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:process=":healthconnect" />
 
         <activity-alias
             android:name=".PermissionsRationaleActivity"
