@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
 
+    <!-- Health Connect APK provider on Android 13 and earlier. -->
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
     </queries>
@@ -23,30 +24,33 @@
             </intent-filter>
         </activity>
 
+        <!-- Keep the Health Connect permission requester in the main app process.
+             The Activity Result permission contract is designed to be launched from a normal foreground Activity. -->
         <activity
             android:name=".HealthConnectActivity"
-            android:exported="false"
-            android:process=":healthconnect" />
+            android:exported="false" />
 
-        <!-- Real activities are used instead of aliases for maximum Health Connect compatibility. -->
+        <!-- Official Health Connect permission rationale entry point for Android 13 and earlier. -->
         <activity
             android:name=".PermissionsRationaleActivity"
-            android:exported="true"
-            android:process=":healthconnect">
+            android:exported="true">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
         </activity>
 
-        <activity
+        <!-- Official Android 14+ permission-usage entry point.
+             Android documentation requires an activity-alias targeting the rationale Activity. -->
+        <activity-alias
             android:name=".ViewPermissionUsageActivity"
             android:exported="true"
-            android:process=":healthconnect"
+            android:targetActivity=".PermissionsRationaleActivity"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
     </application>
 </manifest>
