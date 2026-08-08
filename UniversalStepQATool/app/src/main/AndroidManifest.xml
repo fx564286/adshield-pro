@@ -28,24 +28,25 @@
             android:exported="false"
             android:process=":healthconnect" />
 
-        <activity-alias
+        <!-- Real activities are used instead of aliases for maximum Health Connect compatibility. -->
+        <activity
             android:name=".PermissionsRationaleActivity"
             android:exported="true"
-            android:targetActivity=".HealthConnectActivity">
+            android:process=":healthconnect">
             <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
             </intent-filter>
-        </activity-alias>
+        </activity>
 
-        <activity-alias
+        <activity
             android:name=".ViewPermissionUsageActivity"
             android:exported="true"
-            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
-            android:targetActivity=".HealthConnectActivity">
+            android:process=":healthconnect"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
-        </activity-alias>
+        </activity>
     </application>
 </manifest>
