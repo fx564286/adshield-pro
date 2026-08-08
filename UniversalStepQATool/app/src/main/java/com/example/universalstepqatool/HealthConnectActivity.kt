@@ -1,17 +1,14 @@
 package com.example.universalstepqatool
 
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
-import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
-import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.lifecycle.lifecycleScope
@@ -19,8 +16,6 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZoneOffset
-import java.util.concurrent.TimeUnit
 
 class HealthConnectActivity : AppCompatActivity() {
 
@@ -30,26 +25,23 @@ class HealthConnectActivity : AppCompatActivity() {
 
     private lateinit var statusView: TextView
     private lateinit var logView: TextView
-    private lateinit var stepsInput: EditText
-    private lateinit var durationInput: EditText
 
     private var client: HealthConnectClient? = null
     private var sdkStatus: Int = HealthConnectClient.SDK_UNAVAILABLE
 
     private val readPermission = HealthPermission.getReadPermission(StepsRecord::class)
-    private val writePermission = HealthPermission.getWritePermission(StepsRecord::class)
-    private val permissions = setOf(readPermission, writePermission)
+    private val permissions = setOf(readPermission)
 
     private val permissionLauncher = registerForActivityResult(
         PermissionController.createRequestPermissionResultContract()
     ) { granted ->
         safeUi("권한 결과") {
-            if (granted.containsAll(permissions)) {
-                statusView.text = "상태: Health Connect 읽기/쓰기 권한 승인"
-                log("[권한] 읽기/쓰기 모두 승인됨")
+            if (granted.contains(readPermission)) {
+                statusView.text = "상태: Health Connect 걸음 읽기 권한 승인"
+                log("[권한] READ_STEPS 승인됨")
             } else {
-                statusView.text = "상태: Health Connect 권한 일부/전체 거부"
-                log("[권한] 승인 수: ${granted.size}/${permissions.size}")
+                statusView.text = "상태: Health Connect 읽기 권한 거부"
+                log("[권한] READ_STEPS가 승인되지 않았습니다.")
             }
         }
     }
@@ -60,13 +52,11 @@ class HealthConnectActivity : AppCompatActivity() {
 
         statusView = findViewById(R.id.hcStatus)
         logView = findViewById(R.id.hcLog)
-        stepsInput = findViewById(R.id.hcStepsInput)
-        durationInput = findViewById(R.id.hcDurationInput)
 
         bindButtons()
         refreshClient()
-        log("Health Connect 전용 내부 화면 시작")
-        log("권한 요청 버튼만 Android/Health Connect 시스템 화면을 열 수 있습니다.")
+        log("Health Connect 읽기/권한 진단 화면 시작")
+        log("이 화면은 Health Connect에 테스트 걸음을 기록하지 않습니다.")
     }
 
     private fun bindButtons() {
@@ -82,12 +72,6 @@ class HealthConnectActivity : AppCompatActivity() {
         }
         findViewById<Button>(R.id.hcReadButton).setOnClickListener {
             readStepsSafe()
-        }
-        findViewById<Button>(R.id.hcWriteButton).setOnClickListener {
-            writeStepsSafe()
-        }
-        findViewById<Button>(R.id.hcPrecisionButton).setOnClickListener {
-            precisionSafe()
         }
         findViewById<Button>(R.id.hcBackButton).setOnClickListener {
             safeUi("뒤로가기") { finish() }
@@ -125,12 +109,12 @@ class HealthConnectActivity : AppCompatActivity() {
             launchSafe("권한 상태 확인") {
                 val hc = client ?: return@launchSafe
                 val granted = hc.permissionController.getGrantedPermissions()
-                if (granted.containsAll(permissions)) {
-                    statusView.text = "상태: 권한 이미 승인됨"
-                    log("[권한] 이미 모두 승인되어 있음")
+                if (granted.contains(readPermission)) {
+                    statusView.text = "상태: READ_STEPS 권한 이미 승인됨"
+                    log("[권한] READ_STEPS 이미 승인되어 있음")
                 } else {
                     statusView.text = "상태: 시스템 권한 화면 여는 중"
-                    log("[권한] 이 버튼은 의도적으로 시스템 Health Connect 권한 화면을 엽니다.")
+                    log("[권한] READ_STEPS 권한 화면을 엽니다.")
                     try {
                         permissionLauncher.launch(permissions)
                     } catch (t: Throwable) {
@@ -150,65 +134,16 @@ class HealthConnectActivity : AppCompatActivity() {
         }
         launchSafe("걸음 조회") {
             val hc = client ?: return@launchSafe
-            if (!hasPermissions(setOf(readPermission))) {
+            val granted = hc.permissionController.getGrantedPermissions()
+            if (!granted.contains(readPermission)) {
                 statusView.text = "상태: READ_STEPS 권한 필요"
                 log("[조회] 권한이 없습니다. 권한 요청 버튼을 먼저 사용하세요.")
                 return@launchSafe
             }
             val total = readToday(hc)
-            statusView.text = "상태: 오늘 걸음 $total 보"
+            statusView.text = "상태: 오늘 Health Connect $total 보"
             log("[조회] 오늘 합계: $total 보")
         }
-    }
-
-    private fun writeStepsSafe() {
-        if (!refreshClient()) {
-            statusView.text = "상태: ${statusText()}"
-            log("[기록] Health Connect 사용 불가")
-            return
-        }
-        val steps = stepsInput.text?.toString()?.toLongOrNull()?.coerceIn(1L, 100000L) ?: 1000L
-        val duration = durationInput.text?.toString()?.toLongOrNull()?.coerceIn(1L, 1440L) ?: 10L
-        launchSafe("걸음 기록") {
-            val hc = client ?: return@launchSafe
-            if (!hasPermissions(setOf(writePermission))) {
-                statusView.text = "상태: WRITE_STEPS 권한 필요"
-                log("[기록] 권한이 없습니다. 권한 요청 버튼을 먼저 사용하세요.")
-                return@launchSafe
-            }
-            insertSteps(hc, steps, duration)
-            statusView.text = "상태: 테스트 걸음 +$steps 기록 완료"
-            log("[기록] +$steps 보 기록 완료")
-        }
-    }
-
-    private fun precisionSafe() {
-        if (!refreshClient()) {
-            statusView.text = "상태: ${statusText()}"
-            log("[정밀검증] Health Connect 사용 불가")
-            return
-        }
-        val steps = stepsInput.text?.toString()?.toLongOrNull()?.coerceIn(1L, 100000L) ?: 1000L
-        val duration = durationInput.text?.toString()?.toLongOrNull()?.coerceIn(1L, 1440L) ?: 10L
-        launchSafe("정밀 검증") {
-            val hc = client ?: return@launchSafe
-            if (!hasPermissions(permissions)) {
-                statusView.text = "상태: READ/WRITE 권한 필요"
-                log("[정밀검증] 읽기/쓰기 권한을 먼저 승인하세요.")
-                return@launchSafe
-            }
-            val before = readToday(hc)
-            insertSteps(hc, steps, duration)
-            val after = readToday(hc)
-            val delta = after - before
-            statusView.text = "상태: 검증 완료 / 증가량 $delta 보"
-            log("[정밀검증] 전=$before / 후=$after / 증가=$delta / 요청=$steps")
-        }
-    }
-
-    private suspend fun hasPermissions(required: Set<String>): Boolean {
-        val hc = client ?: return false
-        return hc.permissionController.getGrantedPermissions().containsAll(required)
     }
 
     private suspend fun readToday(hc: HealthConnectClient): Long {
@@ -222,21 +157,6 @@ class HealthConnectActivity : AppCompatActivity() {
             )
         )
         return response[StepsRecord.COUNT_TOTAL] ?: 0L
-    }
-
-    private suspend fun insertSteps(hc: HealthConnectClient, steps: Long, durationMinutes: Long) {
-        val end = Instant.now()
-        val start = end.minusSeconds(TimeUnit.MINUTES.toSeconds(durationMinutes))
-        val zone = ZoneId.systemDefault()
-        val record = StepsRecord(
-            count = steps,
-            startTime = start,
-            endTime = end,
-            startZoneOffset = zone.rules.getOffset(start),
-            endZoneOffset = zone.rules.getOffset(end),
-            metadata = Metadata.manualEntry()
-        )
-        hc.insertRecords(listOf(record))
     }
 
     private fun safeUi(action: String, block: () -> Unit) {
