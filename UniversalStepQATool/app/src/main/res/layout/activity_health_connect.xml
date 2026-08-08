@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Health Connect 읽기/권한 진단"
+            android:text="Health Connect 권한 진단 v6"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -22,22 +22,32 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="상태: 확인 전"
+            android:text="상태: 확인 중"
             android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/hcPermissionState"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:text="이 화면은 READ_STEPS 권한과 실제 Health Connect 합계만 진단합니다. 테스트 걸음 쓰기 기능은 포함하지 않습니다." />
+            android:layout_marginTop="8dp"
+            android:background="#EEEEEE"
+            android:padding="10dp"
+            android:text="권한 상태 확인 중..."
+            android:textIsSelectable="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="권한 요청을 두 번 취소한 뒤에는 Android가 팝업을 다시 표시하지 않을 수 있습니다. 그 경우 아래 '권한 설정 직접 열기'에서 READ_STEPS를 허용하세요." />
 
         <Button
             android:id="@+id/hcCheckButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="0. Health Connect 상태 확인" />
+            android:text="0. 현재 권한 상태 재검사" />
 
         <Button
             android:id="@+id/hcPermissionButton"
@@ -46,10 +56,16 @@
             android:text="1. READ_STEPS 권한 요청" />
 
         <Button
+            android:id="@+id/hcManageAccessButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. 이 앱의 Health Connect 권한 설정 직접 열기" />
+
+        <Button
             android:id="@+id/hcReadButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="2. 오늘 걸음 조회" />
+            android:text="3. 오늘 Health Connect 걸음 조회" />
 
         <Button
             android:id="@+id/hcBackButton"
@@ -68,7 +84,7 @@
             android:id="@+id/hcLog"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minHeight="180dp"
+            android:minHeight="220dp"
             android:paddingTop="6dp"
             android:textIsSelectable="true"
             android:textSize="13sp"
