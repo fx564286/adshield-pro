@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Health Connect 연동"
+            android:text="Health Connect 읽기/권한 진단"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -30,7 +30,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="이 화면의 권한 요청 버튼만 시스템 Health Connect 화면을 열 수 있습니다. 조회/기록/검증 버튼은 권한이 없으면 앱 안에서 안내만 합니다." />
+            android:text="이 화면은 READ_STEPS 권한과 실제 Health Connect 합계만 진단합니다. 테스트 걸음 쓰기 기능은 포함하지 않습니다." />
 
         <Button
             android:id="@+id/hcCheckButton"
@@ -43,41 +43,13 @@
             android:id="@+id/hcPermissionButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1. 읽기/쓰기 권한 요청" />
+            android:text="1. READ_STEPS 권한 요청" />
 
         <Button
             android:id="@+id/hcReadButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="2. 오늘 걸음 조회" />
-
-        <EditText
-            android:id="@+id/hcStepsInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="기록할 테스트 걸음 수"
-            android:inputType="number"
-            android:text="1000" />
-
-        <EditText
-            android:id="@+id/hcDurationInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="테스트 구간(분)"
-            android:inputType="number"
-            android:text="10" />
-
-        <Button
-            android:id="@+id/hcWriteButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="3. 테스트 걸음 기록" />
-
-        <Button
-            android:id="@+id/hcPrecisionButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="4. 기준값 → 기록 → 재조회" />
 
         <Button
             android:id="@+id/hcBackButton"
