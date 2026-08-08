@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Universal Step QA Tool v5"
+            android:text="Universal Step QA Tool v8"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -44,13 +44,19 @@
             android:id="@+id/sensorButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1. 센서 진단 시작" />
+            android:text="1. 실제 센서 진단 시작" />
+
+        <Button
+            android:id="@+id/virtualShakeButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. 가상 흔들림 QA 시작" />
 
         <Button
             android:id="@+id/autoButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="2. 자동 QA 카운터 시작" />
+            android:text="3. 자동 QA 카운터 시작" />
 
         <TextView
             android:id="@+id/localCountView"
@@ -92,14 +98,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="자동 QA 카운터는 이 앱 내부 테스트 값만 증가시키며 제3자 보상 앱에는 기록하지 않습니다." />
+            android:text="가상 흔들림은 이 앱 내부의 가속도 판정 로직에만 합성 샘플을 공급합니다. Android 하드웨어 센서 값이나 다른 앱의 센서 입력은 변경하지 않습니다." />
 
         <Button
             android:id="@+id/healthConnectButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="3. Health Connect 읽기/권한 진단" />
+            android:text="4. Health Connect 읽기/권한 진단" />
 
         <TextView
             android:id="@+id/sensorInfo"
