@@ -11,8 +11,8 @@ android {
         applicationId "com.example.universalstepqatool"
         minSdk 26
         targetSdk 35
-        versionCode 7
-        versionName "6.0-permission-hardening"
+        versionCode 8
+        versionName "7.0-readsteps-compat"
     }
 
     buildTypes {
