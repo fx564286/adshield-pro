@@ -45,11 +45,12 @@ jobs:
         shell: bash
         run: gradle --no-daemon --stacktrace assembleDebug
 
-      - name: Collect APK
+      - name: Collect APK and signing tool
         shell: bash
         run: |
           mkdir -p dist
           cp UniversalStepQATool/app/build/outputs/apk/debug/app-debug.apk dist/UniversalStepQATool-debug.apk
+          cp "$ANDROID_SDK_ROOT/build-tools/35.0.0/lib/apksigner.jar" dist/apksigner.jar
           sha256sum dist/UniversalStepQATool-debug.apk | tee dist/UniversalStepQATool-debug.apk.sha256
           ls -lh dist
 
