@@ -9,6 +9,8 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
 import android.widget.Button
@@ -25,6 +27,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val FALLBACK_THRESHOLD = 1.35
         private const val FALLBACK_REFRACTORY_NS = 280_000_000L
         private const val UI_REFRESH_MS = 250L
+        private const val AUTO_QA_INTERVAL_MS = 600L
+        private const val PREFS = "qa_state"
+        private const val PREF_LOCAL_STEPS = "local_steps"
     }
 
     private lateinit var sensorManager: SensorManager
@@ -32,6 +37,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var stepDetectorSensor: Sensor? = null
     private var accelerometer: Sensor? = null
     private var sensorListening = false
+    private var registeredStepCounter = false
+    private var registeredStepDetector = false
+    private var registeredAccelerometer = false
 
     private lateinit var statusView: TextView
     private lateinit var platformInfoView: TextView
@@ -39,6 +47,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var localCountView: TextView
     private lateinit var logView: TextView
     private lateinit var sensorButton: Button
+    private lateinit var autoButton: Button
 
     private var latestStepCounter: Float? = null
     private var detectorEvents = 0
@@ -50,16 +59,31 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var lastFallbackStepNs = 0L
     private var lastUiRefreshMs = 0L
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var autoQaRunning = false
+    private val autoQaTick = object : Runnable {
+        override fun run() {
+            if (!autoQaRunning) return
+            localQaSteps += 1
+            persistLocalCount()
+            renderLocalCount()
+            mainHandler.postDelayed(this, AUTO_QA_INTERVAL_MS)
+        }
+    }
+
     private val activityPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         safeUi("활동 인식 권한 결과") {
             if (granted) {
+                statusView.text = "상태: 활동 인식 권한 승인"
                 log("[권한] ACTIVITY_RECOGNITION 승인")
-                startSensorsNow()
+                startSensorsNow(includeStepSensors = true)
             } else {
-                statusView.text = "상태: 활동 인식 권한 거부됨"
-                log("[권한] 거부됨. 가속도계만 가능한 기기에서는 일부 진단을 계속 사용할 수 있습니다.")
+                statusView.text = "상태: 활동 인식 권한 거부 / 가속도계 폴백 실행"
+                log("[권한] ACTIVITY_RECOGNITION 거부")
+                log("[폴백] 권한이 없어도 가속도계 진단은 계속 시작합니다.")
+                startSensorsNow(includeStepSensors = false)
             }
             renderPlatformInfo()
         }
@@ -75,6 +99,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         localCountView = findViewById(R.id.localCountView)
         logView = findViewById(R.id.logView)
         sensorButton = findViewById(R.id.sensorButton)
+        autoButton = findViewById(R.id.autoButton)
+
+        localQaSteps = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(PREF_LOCAL_STEPS, 0)
 
         safeUi("센서 초기화") {
             sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
@@ -88,9 +115,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         renderLocalCount()
         renderSensorValues(force = true)
 
-        log("앱 시작: v4 코어 분리 안정화판")
-        log("메인 화면은 외부 앱/설정/Health Connect를 직접 호출하지 않습니다.")
-        log("Health Connect는 별도 내부 화면에서만 실행됩니다.")
+        log("앱 시작: v5 권한/센서 리뷰 안정화판")
+        log("패키지: com.example.universalstepqatool")
+        log("활동 인식 권한이 없어도 가속도계 폴백이 차단되지 않습니다.")
+        log("자동 QA 카운터는 이 앱 내부 테스트 값만 증가시킵니다.")
     }
 
     override fun onResume() {
@@ -107,25 +135,23 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 if (sensorListening) stopSensors() else requestAndStartSensors()
             }
         }
-        findViewById<Button>(R.id.add100Button).setOnClickListener {
-            safeUi("QA +100") {
-                localQaSteps += 100
-                renderLocalCount()
-                log("[QA] 로컬 테스트 카운트 +100 → $localQaSteps")
+        autoButton.setOnClickListener {
+            safeUi("자동 QA 카운터") {
+                if (autoQaRunning) stopAutoQa() else startAutoQa()
             }
         }
+        findViewById<Button>(R.id.add100Button).setOnClickListener {
+            safeUi("QA +100") { addLocalSteps(100) }
+        }
         findViewById<Button>(R.id.add1000Button).setOnClickListener {
-            safeUi("QA +1000") {
-                localQaSteps += 1000
-                renderLocalCount()
-                log("[QA] 로컬 테스트 카운트 +1000 → $localQaSteps")
-            }
+            safeUi("QA +1000") { addLocalSteps(1000) }
         }
         findViewById<Button>(R.id.resetButton).setOnClickListener {
             safeUi("QA 초기화") {
                 localQaSteps = 0
                 detectorEvents = 0
                 fallbackAccelSteps = 0
+                persistLocalCount()
                 renderLocalCount()
                 renderSensorValues(force = true)
                 log("[QA] 앱 내부 테스트 값 초기화")
@@ -133,11 +159,42 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         }
         findViewById<Button>(R.id.healthConnectButton).setOnClickListener {
             safeUi("Health Connect 내부 화면") {
-                val intent = Intent(this, HealthConnectActivity::class.java)
-                startActivity(intent)
-                log("[이동] 앱 내부 Health Connect 화면 열기")
+                startActivity(Intent(this, HealthConnectActivity::class.java))
+                log("[이동] 읽기 전용 Health Connect 진단 화면 열기")
             }
         }
+    }
+
+    private fun addLocalSteps(count: Int) {
+        localQaSteps += count
+        persistLocalCount()
+        renderLocalCount()
+        log("[QA] 로컬 테스트 카운트 +$count → $localQaSteps")
+    }
+
+    private fun startAutoQa() {
+        if (autoQaRunning) return
+        autoQaRunning = true
+        autoButton.text = "자동 QA 카운터 중지"
+        statusView.text = "상태: 자동 QA 카운터 실행 중"
+        log("[QA] 자동 카운터 시작: 약 100보/분, 앱 내부 전용")
+        mainHandler.removeCallbacks(autoQaTick)
+        mainHandler.post(autoQaTick)
+    }
+
+    private fun stopAutoQa() {
+        autoQaRunning = false
+        mainHandler.removeCallbacks(autoQaTick)
+        autoButton.text = "2. 자동 QA 카운터 시작"
+        statusView.text = "상태: 자동 QA 카운터 중지"
+        log("[QA] 자동 카운터 중지 → $localQaSteps 보")
+    }
+
+    private fun persistLocalCount() {
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+            .edit()
+            .putInt(PREF_LOCAL_STEPS, localQaSteps)
+            .apply()
     }
 
     private fun safeUi(action: String, block: () -> Unit) {
@@ -158,11 +215,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         log("===== 자체 점검 =====")
         log("기기: ${Build.MANUFACTURER} ${Build.MODEL}")
         log("Android ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
+        log("ACTIVITY_RECOGNITION: ${activityPermissionText()}")
         log("STEP_COUNTER: ${describeSensor(stepCounterSensor)}")
         log("STEP_DETECTOR: ${describeSensor(stepDetectorSensor)}")
         log("ACCELEROMETER: ${describeSensor(accelerometer)}")
+        log("자동 QA 카운터: ${if (autoQaRunning) "실행 중" else "중지"}")
+        log("로컬 QA 값: $localQaSteps")
         log("UI 이벤트: 정상")
-        log("외부 Activity 호출: 없음")
         log("====================")
     }
 
@@ -171,35 +230,58 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED
         ) {
             statusView.text = "상태: 활동 인식 권한 요청 중"
-            log("[센서] Android 활동 인식 권한을 요청합니다.")
+            log("[센서] STEP_COUNTER/STEP_DETECTOR 사용을 위해 활동 인식 권한을 요청합니다.")
+            log("[센서] 거부해도 가속도계 폴백은 계속 사용할 수 있습니다.")
             activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
             return
         }
-        startSensorsNow()
+        startSensorsNow(includeStepSensors = true)
     }
 
-    private fun startSensorsNow() {
-        var anyRegistered = false
-        stepCounterSensor?.let {
-            anyRegistered = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) || anyRegistered
+    private fun startSensorsNow(includeStepSensors: Boolean) {
+        if (!::sensorManager.isInitialized) {
+            statusView.text = "상태: SensorManager 초기화 실패"
+            return
         }
-        stepDetectorSensor?.let {
-            anyRegistered = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) || anyRegistered
+
+        sensorManager.unregisterListener(this)
+        registeredStepCounter = false
+        registeredStepDetector = false
+        registeredAccelerometer = false
+
+        if (includeStepSensors) {
+            stepCounterSensor?.let {
+                registeredStepCounter = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            }
+            stepDetectorSensor?.let {
+                registeredStepDetector = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+            }
         }
+
         accelerometer?.let {
-            anyRegistered = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) || anyRegistered
+            registeredAccelerometer = sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
         }
-        sensorListening = anyRegistered
-        sensorButton.text = if (sensorListening) "센서 진단 중지" else "센서 진단 시작"
-        statusView.text = if (sensorListening) "상태: 센서 진단 실행 중" else "상태: 등록 가능한 센서 없음"
-        log("[센서] 등록 결과: ${if (sensorListening) "성공" else "실패/미지원"}")
+
+        sensorListening = registeredStepCounter || registeredStepDetector || registeredAccelerometer
+        sensorButton.text = if (sensorListening) "센서 진단 중지" else "1. 센서 진단 시작"
+        statusView.text = when {
+            registeredStepCounter || registeredStepDetector -> "상태: 걸음 센서 진단 실행 중"
+            registeredAccelerometer -> "상태: 가속도계 폴백 진단 실행 중"
+            else -> "상태: 등록 가능한 센서 없음"
+        }
+        log("[센서] STEP_COUNTER 등록=$registeredStepCounter")
+        log("[센서] STEP_DETECTOR 등록=$registeredStepDetector")
+        log("[센서] ACCELEROMETER 등록=$registeredAccelerometer")
         renderSensorValues(force = true)
     }
 
     private fun stopSensors() {
         if (::sensorManager.isInitialized) sensorManager.unregisterListener(this)
         sensorListening = false
-        sensorButton.text = "센서 진단 시작"
+        registeredStepCounter = false
+        registeredStepDetector = false
+        registeredAccelerometer = false
+        sensorButton.text = "1. 센서 진단 시작"
         statusView.text = "상태: 센서 진단 중지"
         log("[센서] 진단 중지")
         renderSensorValues(force = true)
@@ -228,7 +310,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val dynamic = magnitude - gravityEstimate
         filteredDynamic = filteredDynamic * 0.65 + dynamic * 0.35
 
-        if (stepCounterSensor == null && stepDetectorSensor == null) {
+        if (!registeredStepCounter && !registeredStepDetector && registeredAccelerometer) {
             val now = event.timestamp
             if (filteredDynamic > FALLBACK_THRESHOLD && now - lastFallbackStepNs > FALLBACK_REFRACTORY_NS) {
                 fallbackAccelSteps++
@@ -239,21 +321,26 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
-    private fun renderPlatformInfo() {
-        val activityPermission = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+    private fun activityPermissionText(): String =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
             checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
         ) "승인" else "미승인"
 
+    private fun renderPlatformInfo() {
         platformInfoView.text = buildString {
             appendLine("기기: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("Android: ${Build.VERSION.RELEASE} / API ${Build.VERSION.SDK_INT}")
-            appendLine("활동 인식 권한: $activityPermission")
-            append("메인 화면 외부 호출: 없음")
+            appendLine("활동 인식 권한: ${activityPermissionText()}")
+            appendLine("패키지: $packageName")
+            append("권한 거부 시: 가속도계 폴백 허용")
         }
     }
 
     private fun renderLocalCount() {
-        localCountView.text = "앱 내부 QA 테스트 카운트: $localQaSteps 보"
+        localCountView.text = buildString {
+            append("앱 내부 QA 테스트 카운트: $localQaSteps 보")
+            if (autoQaRunning) append("  (자동 증가 중)")
+        }
     }
 
     private fun renderSensorValues(force: Boolean) {
@@ -263,12 +350,12 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         sensorInfoView.text = buildString {
             appendLine("STEP_COUNTER: ${describeSensor(stepCounterSensor)}")
-            appendLine("  부팅 이후 누적값: ${latestStepCounter ?: "미수신"}")
+            appendLine("  등록: $registeredStepCounter / 부팅 이후 누적값: ${latestStepCounter ?: "미수신"}")
             appendLine("STEP_DETECTOR: ${describeSensor(stepDetectorSensor)}")
-            appendLine("  진단 이벤트 수: $detectorEvents")
+            appendLine("  등록: $registeredStepDetector / 진단 이벤트: $detectorEvents")
             appendLine("ACCELEROMETER: ${describeSensor(accelerometer)}")
-            appendLine("  |a|: ${"%.3f".format(Locale.US, latestAccelMagnitude)} m/s²")
-            appendLine("  전용 걸음센서 없을 때 보조 계수: $fallbackAccelSteps")
+            appendLine("  등록: $registeredAccelerometer / |a|: ${"%.3f".format(Locale.US, latestAccelMagnitude)} m/s²")
+            appendLine("  가속도 폴백 계수: $fallbackAccelSteps")
             append("진단 상태: ${if (sensorListening) "실행 중" else "중지"}")
         }
     }
@@ -283,6 +370,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     override fun onDestroy() {
+        autoQaRunning = false
+        mainHandler.removeCallbacks(autoQaTick)
         try {
             if (::sensorManager.isInitialized) sensorManager.unregisterListener(this)
         } catch (_: Throwable) {
