@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Universal Step QA Tool v4"
+            android:text="Universal Step QA Tool v5"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -45,6 +45,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="1. 센서 진단 시작" />
+
+        <Button
+            android:id="@+id/autoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. 자동 QA 카운터 시작" />
 
         <TextView
             android:id="@+id/localCountView"
@@ -82,12 +88,18 @@
                 android:text="초기화" />
         </LinearLayout>
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="자동 QA 카운터는 이 앱 내부 테스트 값만 증가시키며 제3자 보상 앱에는 기록하지 않습니다." />
+
         <Button
             android:id="@+id/healthConnectButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="2. Health Connect 연동 화면 (앱 내부)" />
+            android:text="3. Health Connect 읽기/권한 진단" />
 
         <TextView
             android:id="@+id/sensorInfo"
