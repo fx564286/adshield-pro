@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -12,7 +13,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Universal Android Step QA Tool v3"
+            android:text="Universal Step QA Tool v4"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -22,7 +23,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="상태: 시작됨"
-            android:textSize="15sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
 
         <TextView
@@ -36,74 +37,79 @@
             android:id="@+id/selfTestButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="0. 앱 자체 점검 (앱 밖으로 이동 안 함)" />
-
-        <Button
-            android:id="@+id/authButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="1. Health Connect 권한 요청 (시스템 화면 열림)" />
-
-        <Button
-            android:id="@+id/settingsButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Health Connect 설정 열기 (외부 설정 화면)" />
-
-        <Button
-            android:id="@+id/readButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="2. 오늘 Health Connect 걸음 조회 (앱 안에서 실행)" />
-
-        <EditText
-            android:id="@+id/stepsInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="추가할 테스트 걸음 수"
-            android:inputType="number"
-            android:text="1000" />
-
-        <EditText
-            android:id="@+id/durationInput"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="테스트 구간(분)"
-            android:inputType="number"
-            android:text="10" />
-
-        <Button
-            android:id="@+id/writeButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="3. Health Connect에 테스트 걸음 기록 (앱 안에서 실행)" />
-
-        <Button
-            android:id="@+id/precisionButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="정밀 검증: 기준값 → 기록 → 재조회 (앱 안에서 실행)" />
+            android:layout_marginTop="10dp"
+            android:text="0. 앱 내부 자체 점검" />
 
         <Button
             android:id="@+id/sensorButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="범용 물리 센서 진단 시작" />
+            android:text="1. 센서 진단 시작" />
+
+        <TextView
+            android:id="@+id/localCountView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="앱 내부 QA 테스트 카운트: 0 보"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/add100Button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="+100" />
+
+            <Button
+                android:id="@+id/add1000Button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="+1000" />
+
+            <Button
+                android:id="@+id/resetButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="초기화" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/healthConnectButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="2. Health Connect 연동 화면 (앱 내부)" />
 
         <TextView
             android:id="@+id/sensorInfo"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="10dp"
+            android:layout_marginTop="12dp"
             android:text="센서: 미확인"
             android:textIsSelectable="true" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="실행 로그"
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/logView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingTop="14dp"
+            android:minHeight="160dp"
+            android:paddingTop="6dp"
             android:textIsSelectable="true"
             android:textSize="13sp"
             android:typeface="monospace" />
