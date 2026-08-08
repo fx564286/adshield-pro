@@ -13,7 +13,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Universal Step QA Tool v8"
+            android:text="Universal Step QA Tool v9"
             android:textSize="22sp"
             android:textStyle="bold" />
 
@@ -33,12 +33,22 @@
             android:layout_marginTop="8dp"
             android:textIsSelectable="true" />
 
+        <TextView
+            android:id="@+id/actualSessionView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:padding="12dp"
+            android:text="실제 걷기 세션: 0 보"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
         <Button
             android:id="@+id/selfTestButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="0. 앱 내부 자체 점검" />
+            android:text="0. 실제 센서 자체 점검" />
 
         <Button
             android:id="@+id/sensorButton"
@@ -46,10 +56,17 @@
             android:layout_height="wrap_content"
             android:text="1. 실제 센서 진단 시작" />
 
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="실제 걷기는 STEP_DETECTOR, STEP_COUNTER 증가량, 실제 가속도계 보행 검출을 동시에 비교합니다. 걸음 센서가 0이어도 가속도계 폴백이 계속 작동합니다." />
+
         <Button
             android:id="@+id/virtualShakeButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             android:text="2. 가상 흔들림 QA 시작" />
 
         <Button
@@ -63,7 +80,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="앱 내부 QA 테스트 카운트: 0 보"
+            android:text="QA 테스트 카운트: 0 보"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -91,14 +108,14 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="초기화" />
+                android:text="QA 초기화" />
         </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="가상 흔들림은 이 앱 내부의 가속도 판정 로직에만 합성 샘플을 공급합니다. Android 하드웨어 센서 값이나 다른 앱의 센서 입력은 변경하지 않습니다." />
+            android:text="가상/자동 QA 값은 실제 걷기 세션과 완전히 분리됩니다." />
 
         <Button
             android:id="@+id/healthConnectButton"
