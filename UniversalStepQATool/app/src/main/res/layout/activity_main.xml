@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Universal Android Step QA Tool"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="상태: 시작됨"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/platformInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textIsSelectable="true" />
+
+        <Button
+            android:id="@+id/authButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. Health Connect 걸음 읽기/쓰기 권한" />
+
+        <Button
+            android:id="@+id/settingsButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Health Connect 설정 열기" />
+
+        <Button
+            android:id="@+id/readButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. 오늘 Health Connect 걸음 조회" />
+
+        <EditText
+            android:id="@+id/stepsInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="추가할 테스트 걸음 수"
+            android:inputType="number"
+            android:text="1000" />
+
+        <EditText
+            android:id="@+id/durationInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="테스트 구간(분)"
+            android:inputType="number"
+            android:text="10" />
+
+        <Button
+            android:id="@+id/writeButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3. Health Connect에 테스트 걸음 기록" />
+
+        <Button
+            android:id="@+id/precisionButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="정밀 검증: 기준값 → 기록 → 재조회" />
+
+        <Button
+            android:id="@+id/sensorButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="범용 물리 센서 진단 시작/중지" />
+
+        <TextView
+            android:id="@+id/sensorInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="10dp"
+            android:text="센서: 미확인"
+            android:textIsSelectable="true" />
+
+        <TextView
+            android:id="@+id/logView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingTop="14dp"
+            android:textIsSelectable="true"
+            android:textSize="13sp"
+            android:typeface="monospace" />
+
+    </LinearLayout>
+</ScrollView>
