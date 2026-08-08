@@ -11,8 +11,8 @@ android {
         applicationId "com.example.universalstepqatool"
         minSdk 26
         targetSdk 35
-        versionCode 9
-        versionName "8.0-virtual-shake-qa"
+        versionCode 10
+        versionName "9.0-real-walking-sensor-fix"
     }
 
     buildTypes {
