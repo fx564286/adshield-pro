@@ -1,0 +1,53 @@
+name: Temporary recovered video draft release
+
+on:
+  push:
+    branches: [vod-release-temp-20260811]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish-draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download completed recovery artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api \
+            -H 'Accept: application/vnd.github+json' \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts/9097273011/zip" \
+            > /tmp/recovery.zip
+          mkdir -p /tmp/recovery
+          unzip -q /tmp/recovery.zip -d /tmp/recovery
+          test -f /tmp/recovery/recovered.mp4
+          size=$(stat -c%s /tmp/recovery/recovered.mp4)
+          hash=$(sha256sum /tmp/recovery/recovered.mp4 | awk '{print $1}')
+          echo "size=$size"
+          echo "sha256=$hash"
+          test "$size" = "2074962997"
+          test "$hash" = "a97c624d28c551a7856394f33abc901e52b3bf723daa631fd0a1c0c98d95d12a"
+          mv /tmp/recovery/recovered.mp4 /tmp/recovered_complete.mp4
+
+      - name: Create private draft release and upload one MP4
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ydparty-recovery-20260811
+        run: |
+          set -euo pipefail
+          # Draft releases in a public repository are visible only to users with push access until published.
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes >/dev/null 2>&1 || true
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --target cd7dd0fab1920e30793be94023316bf2679db73d \
+            --title 'Recovered video - private draft' \
+            --notes 'Recovered complete MP4. Keep this release as draft; do not publish.'
+          gh release upload "$TAG" /tmp/recovered_complete.mp4 \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json id,url,isDraft,assets
