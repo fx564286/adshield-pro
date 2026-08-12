@@ -1,0 +1,42 @@
+name: Android SDK 36 Offline Bridge
+
+on:
+  push:
+    branches: [chatgpt/gradle-offline-bridge-20260812]
+    paths:
+      - '.github/workflows/android-sdk36-offline-bridge.yml'
+  workflow_dispatch:
+
+jobs:
+  package-sdk36:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install exact SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0" "platforms;android-36"
+          test -f "$ANDROID_HOME/build-tools/36.0.0/source.properties"
+          test -f "$ANDROID_HOME/platforms/android-36/source.properties"
+          cat "$ANDROID_HOME/build-tools/36.0.0/source.properties"
+          cat "$ANDROID_HOME/platforms/android-36/source.properties"
+
+      - name: Pack SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sdk36/meta"
+          tar -C "$ANDROID_HOME" -cf - build-tools/36.0.0 platforms/android-36 | zstd -T0 -10 -o "$RUNNER_TEMP/sdk36/android-sdk36-builddeps.tar.zst"
+          sha256sum "$RUNNER_TEMP/sdk36/android-sdk36-builddeps.tar.zst" | tee "$RUNNER_TEMP/sdk36/meta/archive.sha256"
+          du -sh "$ANDROID_HOME/build-tools/36.0.0" "$ANDROID_HOME/platforms/android-36" | tee "$RUNNER_TEMP/sdk36/meta/sizes.txt"
+
+      - name: Upload SDK 36 bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-sdk36-builddeps
+          path: |
+            ${{ runner.temp }}/sdk36/android-sdk36-builddeps.tar.zst
+            ${{ runner.temp }}/sdk36/meta/
+          compression-level: 0
+          retention-days: 1
