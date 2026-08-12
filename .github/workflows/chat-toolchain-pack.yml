@@ -43,15 +43,16 @@ jobs:
           flutter pub get
           flutter build apk --debug
 
-      - name: Pack portable toolchain
+      - name: Pack and split portable toolchain
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/chat-pack/android-sdk" "$RUNNER_TEMP/chat-pack/cache"
+          mkdir -p "$RUNNER_TEMP/chat-pack/android-sdk" "$RUNNER_TEMP/chat-pack/cache" "$RUNNER_TEMP/chunks"
           FLUTTER_BIN="$(readlink -f "$(command -v flutter)")"
           FLUTTER_ROOT="$(dirname "$(dirname "$FLUTTER_BIN")")"
           ANDROID_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
 
+          mkdir -p "$RUNNER_TEMP/chat-pack/android-sdk/platforms" "$RUNNER_TEMP/chat-pack/android-sdk/build-tools"
           cp -a "$ANDROID_ROOT/platform-tools" "$RUNNER_TEMP/chat-pack/android-sdk/"
           cp -a "$ANDROID_ROOT/platforms/android-35" "$RUNNER_TEMP/chat-pack/android-sdk/platforms/"
           cp -a "$ANDROID_ROOT/build-tools/35.0.0" "$RUNNER_TEMP/chat-pack/android-sdk/build-tools/"
@@ -64,6 +65,9 @@ jobs:
           tar --zstd -C "$RUNNER_TEMP/chat-pack" -cf "$RUNNER_TEMP/android-sdk-min.tar.zst" android-sdk
           tar --zstd -C "$RUNNER_TEMP/chat-pack" -cf "$RUNNER_TEMP/flutter-build-cache.tar.zst" cache
 
+          split -b 400M -d -a 2 "$RUNNER_TEMP/flutter-sdk.tar.zst" "$RUNNER_TEMP/chunks/flutter-sdk.part-"
+          split -b 400M -d -a 2 "$RUNNER_TEMP/flutter-build-cache.tar.zst" "$RUNNER_TEMP/chunks/flutter-cache.part-"
+
           {
             echo "generated_utc=$(date -u +%FT%TZ)"
             echo "flutter=$(flutter --version | head -n1)"
@@ -71,17 +75,11 @@ jobs:
             sha256sum "$RUNNER_TEMP/flutter-sdk.tar.zst"
             sha256sum "$RUNNER_TEMP/android-sdk-min.tar.zst"
             sha256sum "$RUNNER_TEMP/flutter-build-cache.tar.zst"
+            echo "--- chunks ---"
+            sha256sum "$RUNNER_TEMP/chunks"/*
           } > "$RUNNER_TEMP/toolchain-manifest.txt"
 
-          ls -lh "$RUNNER_TEMP"/*.tar.zst "$RUNNER_TEMP/toolchain-manifest.txt"
-
-      - name: Upload Flutter SDK
-        uses: actions/upload-artifact@v4
-        with:
-          name: chat-flutter-sdk
-          path: ${{ runner.temp }}/flutter-sdk.tar.zst
-          compression-level: 0
-          retention-days: 7
+          ls -lh "$RUNNER_TEMP/chunks"/* "$RUNNER_TEMP/android-sdk-min.tar.zst" "$RUNNER_TEMP/toolchain-manifest.txt"
 
       - name: Upload Android SDK
         uses: actions/upload-artifact@v4
@@ -91,11 +89,75 @@ jobs:
           compression-level: 0
           retention-days: 7
 
-      - name: Upload build cache
+      - name: Upload Flutter SDK part 00
         uses: actions/upload-artifact@v4
         with:
-          name: chat-flutter-build-cache
-          path: ${{ runner.temp }}/flutter-build-cache.tar.zst
+          name: chat-flutter-sdk-part-00
+          path: ${{ runner.temp }}/chunks/flutter-sdk.part-00
+          compression-level: 0
+          retention-days: 7
+      - name: Upload Flutter SDK part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-sdk-part-01
+          path: ${{ runner.temp }}/chunks/flutter-sdk.part-01
+          compression-level: 0
+          retention-days: 7
+      - name: Upload Flutter SDK part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-sdk-part-02
+          path: ${{ runner.temp }}/chunks/flutter-sdk.part-02
+          compression-level: 0
+          retention-days: 7
+      - name: Upload Flutter SDK part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-sdk-part-03
+          path: ${{ runner.temp }}/chunks/flutter-sdk.part-03
+          compression-level: 0
+          retention-days: 7
+      - name: Upload Flutter SDK part 04
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-sdk-part-04
+          path: ${{ runner.temp }}/chunks/flutter-sdk.part-04
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload build cache part 00
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-cache-part-00
+          path: ${{ runner.temp }}/chunks/flutter-cache.part-00
+          compression-level: 0
+          retention-days: 7
+      - name: Upload build cache part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-cache-part-01
+          path: ${{ runner.temp }}/chunks/flutter-cache.part-01
+          compression-level: 0
+          retention-days: 7
+      - name: Upload build cache part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-cache-part-02
+          path: ${{ runner.temp }}/chunks/flutter-cache.part-02
+          compression-level: 0
+          retention-days: 7
+      - name: Upload build cache part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-cache-part-03
+          path: ${{ runner.temp }}/chunks/flutter-cache.part-03
+          compression-level: 0
+          retention-days: 7
+      - name: Upload build cache part 04
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-cache-part-04
+          path: ${{ runner.temp }}/chunks/flutter-cache.part-04
           compression-level: 0
           retention-days: 7
 
