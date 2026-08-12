@@ -13,23 +13,26 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Download and verify official Gradle 8.14
+      - name: Download and verify official Gradle 9.1.0
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
-          curl -fL --retry 3 -o gradle-8.14-bin.zip https://services.gradle.org/distributions/gradle-8.14-bin.zip
-          echo '61ad310d3c7d3e5da131b76bbf22b5a4c0786e9d892dae8c1658d4b484de3caa  gradle-8.14-bin.zip' | sha256sum -c -
-          gzip -1 -c gradle-8.14-bin.zip > gradle-8.14-bin.zip.gz
-          sha256sum gradle-8.14-bin.zip gradle-8.14-bin.zip.gz | tee gradle-checksums.txt
-          ls -lh gradle-8.14-bin.zip gradle-8.14-bin.zip.gz gradle-checksums.txt
+          curl -fL --retry 3 -o gradle-9.1.0-all.zip https://services.gradle.org/distributions/gradle-9.1.0-all.zip
+          curl -fL --retry 3 -o gradle-9.1.0-all.zip.sha256 https://services.gradle.org/distributions/gradle-9.1.0-all.zip.sha256
+          printf '%s  %s\n' "$(tr -d '[:space:]' < gradle-9.1.0-all.zip.sha256)" gradle-9.1.0-all.zip | sha256sum -c -
+          gzip -1 -c gradle-9.1.0-all.zip > gradle-9.1.0-all.zip.gz
+          sha256sum gradle-9.1.0-all.zip gradle-9.1.0-all.zip.gz | tee gradle-checksums.txt
+          cat gradle-9.1.0-all.zip.sha256
+          ls -lh gradle-9.1.0-all.zip gradle-9.1.0-all.zip.gz gradle-checksums.txt
 
       - name: Upload gzip-wrapped Gradle
         uses: actions/upload-artifact@v4
         with:
-          name: gradle-8.14-bin-gzip
+          name: gradle-9.1.0-all-gzip
           path: |
-            ${{ runner.temp }}/gradle-8.14-bin.zip.gz
+            ${{ runner.temp }}/gradle-9.1.0-all.zip.gz
+            ${{ runner.temp }}/gradle-9.1.0-all.zip.sha256
             ${{ runner.temp }}/gradle-checksums.txt
           compression-level: 0
           retention-days: 1
