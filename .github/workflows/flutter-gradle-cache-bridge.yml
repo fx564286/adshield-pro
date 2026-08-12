@@ -1,0 +1,88 @@
+name: Flutter Gradle Cache Bridge
+
+on:
+  push:
+    branches:
+      - chatgpt/gradle-offline-bridge-20260812
+    paths:
+      - '.github/workflows/flutter-gradle-cache-bridge.yml'
+  workflow_dispatch:
+
+jobs:
+  seed-cache:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Flutter 3.44.9
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.9'
+          channel: stable
+          cache: false
+
+      - name: Seed exact Flutter Android Gradle cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter config --no-analytics
+          flutter --version
+          rm -rf "$RUNNER_TEMP/offline_seed"
+          flutter create --platforms=android "$RUNNER_TEMP/offline_seed"
+          cd "$RUNNER_TEMP/offline_seed"
+          flutter pub get
+          cat android/gradle/wrapper/gradle-wrapper.properties
+          cat android/settings.gradle.kts
+          flutter build apk --debug
+          test -s build/app/outputs/flutter-apk/app-debug.apk
+          sha256sum build/app/outputs/flutter-apk/app-debug.apk
+
+      - name: Package Gradle caches only
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/cache-out"
+          mkdir -p "$OUT"
+          cd "$HOME"
+          tar --zstd -cf "$OUT/gradle-cache.tar.zst" \
+            .gradle/caches \
+            .gradle/native \
+            .gradle/notifications \
+            .gradle/daemon 2>/dev/null || \
+          tar --zstd -cf "$OUT/gradle-cache.tar.zst" \
+            .gradle/caches \
+            .gradle/native 2>/dev/null
+          cd "$OUT"
+          sha256sum gradle-cache.tar.zst > gradle-cache.tar.zst.sha256
+          split -b 300M -d -a 2 gradle-cache.tar.zst gradle-cache.part-
+          sha256sum gradle-cache.part-* > gradle-cache-parts.sha256
+          rm gradle-cache.tar.zst
+          {
+            echo "generated_utc=$(date -u +%FT%TZ)"
+            echo "flutter=$(flutter --version | head -n1)"
+            echo "java=$(java -version 2>&1 | head -n1)"
+            echo '--- wrapper ---'
+            cat "$RUNNER_TEMP/offline_seed/android/gradle/wrapper/gradle-wrapper.properties"
+            echo '--- sizes ---'
+            ls -lh gradle-cache.part-*
+          } > gradle-cache-manifest.txt
+          cat gradle-cache-manifest.txt
+          cat gradle-cache.tar.zst.sha256
+          cat gradle-cache-parts.sha256
+
+      - name: Upload Gradle cache parts
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-3.44.9-gradle-cache
+          path: |
+            ${{ runner.temp }}/cache-out/gradle-cache.part-*
+            ${{ runner.temp }}/cache-out/gradle-cache-parts.sha256
+            ${{ runner.temp }}/cache-out/gradle-cache.tar.zst.sha256
+            ${{ runner.temp }}/cache-out/gradle-cache-manifest.txt
+          compression-level: 0
+          retention-days: 1
