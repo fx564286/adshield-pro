@@ -59,7 +59,7 @@ jobs:
             .gradle/native 2>/dev/null
           cd "$OUT"
           sha256sum gradle-cache.tar.zst > gradle-cache.tar.zst.sha256
-          split -b 300M -d -a 2 gradle-cache.tar.zst gradle-cache.part-
+          split -b 200M -d -a 2 gradle-cache.tar.zst gradle-cache.part-
           sha256sum gradle-cache.part-* > gradle-cache-parts.sha256
           rm gradle-cache.tar.zst
           {
@@ -75,14 +75,80 @@ jobs:
           cat gradle-cache.tar.zst.sha256
           cat gradle-cache-parts.sha256
 
-      - name: Upload Gradle cache parts
+      - name: Upload metadata
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-3.44.9-gradle-cache
+          name: gradle-cache-metadata
           path: |
-            ${{ runner.temp }}/cache-out/gradle-cache.part-*
             ${{ runner.temp }}/cache-out/gradle-cache-parts.sha256
             ${{ runner.temp }}/cache-out/gradle-cache.tar.zst.sha256
             ${{ runner.temp }}/cache-out/gradle-cache-manifest.txt
+          compression-level: 0
+          retention-days: 1
+
+      - name: Upload part 00
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-00
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-00
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 01
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-01
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-01
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 02
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-02
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-02
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 03
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-03
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-03
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 04
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-04
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-04
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 05
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-05
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-05
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 06
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-06
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-06
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 07
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-07
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-07
+          if-no-files-found: ignore
+          compression-level: 0
+          retention-days: 1
+      - name: Upload part 08
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-cache-part-08
+          path: ${{ runner.temp }}/cache-out/gradle-cache.part-08
+          if-no-files-found: ignore
           compression-level: 0
           retention-days: 1
