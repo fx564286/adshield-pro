@@ -1,0 +1,107 @@
+name: Chat Container Toolchain Pack
+
+on:
+  push:
+    branches:
+      - chat-toolchain-bootstrap
+  workflow_dispatch:
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Prepare Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          ANDROID_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          yes | "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_ROOT/cmdline-tools/latest/bin/sdkmanager" \
+            'platform-tools' \
+            'platforms;android-35' \
+            'build-tools;35.0.0'
+          flutter config --no-analytics
+          flutter precache --android
+
+      - name: Seed Gradle and Pub caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/chat_seed_app
+          flutter create --platforms=android /tmp/chat_seed_app
+          cd /tmp/chat_seed_app
+          flutter pub get
+          flutter build apk --debug
+
+      - name: Pack portable toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/chat-pack/android-sdk" "$RUNNER_TEMP/chat-pack/cache"
+          FLUTTER_BIN="$(readlink -f "$(command -v flutter)")"
+          FLUTTER_ROOT="$(dirname "$(dirname "$FLUTTER_BIN")")"
+          ANDROID_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+
+          cp -a "$ANDROID_ROOT/platform-tools" "$RUNNER_TEMP/chat-pack/android-sdk/"
+          cp -a "$ANDROID_ROOT/platforms/android-35" "$RUNNER_TEMP/chat-pack/android-sdk/platforms/"
+          cp -a "$ANDROID_ROOT/build-tools/35.0.0" "$RUNNER_TEMP/chat-pack/android-sdk/build-tools/"
+          cp -a "$ANDROID_ROOT/cmdline-tools" "$RUNNER_TEMP/chat-pack/android-sdk/"
+          cp -a "$ANDROID_ROOT/licenses" "$RUNNER_TEMP/chat-pack/android-sdk/" 2>/dev/null || true
+          cp -a "$HOME/.gradle" "$RUNNER_TEMP/chat-pack/cache/gradle"
+          cp -a "$HOME/.pub-cache" "$RUNNER_TEMP/chat-pack/cache/pub"
+
+          tar --zstd -C "$(dirname "$FLUTTER_ROOT")" -cf "$RUNNER_TEMP/flutter-sdk.tar.zst" "$(basename "$FLUTTER_ROOT")"
+          tar --zstd -C "$RUNNER_TEMP/chat-pack" -cf "$RUNNER_TEMP/android-sdk-min.tar.zst" android-sdk
+          tar --zstd -C "$RUNNER_TEMP/chat-pack" -cf "$RUNNER_TEMP/flutter-build-cache.tar.zst" cache
+
+          {
+            echo "generated_utc=$(date -u +%FT%TZ)"
+            echo "flutter=$(flutter --version | head -n1)"
+            echo "java=$(java -version 2>&1 | head -n1)"
+            sha256sum "$RUNNER_TEMP/flutter-sdk.tar.zst"
+            sha256sum "$RUNNER_TEMP/android-sdk-min.tar.zst"
+            sha256sum "$RUNNER_TEMP/flutter-build-cache.tar.zst"
+          } > "$RUNNER_TEMP/toolchain-manifest.txt"
+
+          ls -lh "$RUNNER_TEMP"/*.tar.zst "$RUNNER_TEMP/toolchain-manifest.txt"
+
+      - name: Upload Flutter SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-sdk
+          path: ${{ runner.temp }}/flutter-sdk.tar.zst
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload Android SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-android-sdk-min
+          path: ${{ runner.temp }}/android-sdk-min.tar.zst
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload build cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-flutter-build-cache
+          path: ${{ runner.temp }}/flutter-build-cache.tar.zst
+          compression-level: 0
+          retention-days: 7
+
+      - name: Upload manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: chat-toolchain-manifest
+          path: ${{ runner.temp }}/toolchain-manifest.txt
+          retention-days: 7
