@@ -12,7 +12,7 @@ permissions:
 
 env:
   MODEL_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
-  ENSEMBLE_REVISION: '2'
+  ENSEMBLE_REVISION: '3'
 
 jobs:
   candidate:
@@ -119,4 +119,104 @@ jobs:
             candidate-${{ matrix.worker }}-report.txt
           if-no-files-found: ignore
           retention-days: 2
+          compression-level: 0
+
+  structural-qa:
+    needs: candidate
+    if: ${{ always() && needs.candidate.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vace-candidate-*
+          path: candidates
+          merge-multiple: true
+      - name: Install QA dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --quiet --break-system-packages 'mediapipe==0.10.21' opencv-python-headless numpy
+      - name: Rank candidates by body topology and temporal coherence
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cat > qa.py <<'PY'
+          import cv2, glob, json, math, os
+          import numpy as np
+          import mediapipe as mp
+
+          pose_cls = mp.solutions.pose.Pose
+          required = [11,12,13,14,15,16,23,24,25,26,27,28]
+          rows=[]
+          for avi in sorted(glob.glob('candidates/candidate-*.avi')):
+              cap=cv2.VideoCapture(avi)
+              frames=[]
+              while True:
+                  ok, fr=cap.read()
+                  if not ok: break
+                  frames.append(fr)
+              cap.release()
+              detections=[]; centers=[]; sharp=[]; visibility=[]
+              with pose_cls(static_image_mode=True, model_complexity=1,
+                            enable_segmentation=False,
+                            min_detection_confidence=0.35) as pose:
+                  for fr in frames:
+                      sharp.append(float(cv2.Laplacian(cv2.cvtColor(fr,cv2.COLOR_BGR2GRAY),cv2.CV_64F).var()))
+                      res=pose.process(cv2.cvtColor(fr,cv2.COLOR_BGR2RGB))
+                      if not res.pose_landmarks:
+                          detections.append(0); centers.append(None); visibility.append(0.0); continue
+                      lm=res.pose_landmarks.landmark
+                      vis=float(np.mean([lm[i].visibility for i in required]))
+                      visibility.append(vis)
+                      good=sum(lm[i].visibility>=0.35 for i in required)
+                      detections.append(1 if good>=10 else 0)
+                      centers.append((float((lm[23].x+lm[24].x)/2),float((lm[23].y+lm[24].y)/2)))
+              jumps=[]
+              for a,b in zip(centers,centers[1:]):
+                  if a is not None and b is not None:
+                      jumps.append(math.hypot(a[0]-b[0],a[1]-b[1]))
+              pose_rate=sum(detections)/max(1,len(frames))
+              mean_vis=float(np.mean(visibility)) if visibility else 0.0
+              mean_jump=float(np.mean(jumps)) if jumps else 1.0
+              sharpness=float(np.mean(sharp)) if sharp else 0.0
+              # Structural score: body recoverability dominates; smooth but non-static motion gets a smaller term.
+              continuity=max(0.0,1.0-min(mean_jump/0.25,1.0))
+              sharp_norm=min(sharpness/300.0,1.0)
+              score=0.55*pose_rate+0.25*mean_vis+0.15*continuity+0.05*sharp_norm
+              rows.append({'file':os.path.basename(avi),'frames':len(frames),'pose_rate':pose_rate,
+                           'mean_required_visibility':mean_vis,'mean_hip_jump':mean_jump,
+                           'sharpness':sharpness,'structural_score':score})
+          rows.sort(key=lambda x:x['structural_score'], reverse=True)
+          with open('qa-ranking.json','w') as f: json.dump(rows,f,indent=2)
+          if not rows: raise SystemExit('no candidate videos')
+          best=rows[0]
+          with open('qa-report.txt','w') as f:
+              f.write(f"BEST_CANDIDATE={best['file']}\n")
+              f.write(f"BEST_STRUCTURAL_SCORE={best['structural_score']:.6f}\n")
+              f.write(f"BEST_POSE_RATE={best['pose_rate']:.6f}\n")
+              f.write('MANUAL_VISUAL_GATE_REQUIRED=YES\n')
+              f.write('AUTOMATIC_QA_IS_NOT_FINAL_VISUAL_PASS=YES\n')
+          print(json.dumps(rows,indent=2))
+          if best['pose_rate'] < 0.67:
+              raise SystemExit('all candidates fail minimum full-body pose recoverability')
+          PY
+          python3 qa.py
+          cat qa-report.txt
+          BEST=$(awk -F= '/BEST_CANDIDATE=/{print $2}' qa-report.txt)
+          cp "candidates/$BEST" best-structural-candidate.avi
+          ffmpeg -y -v error -i best-structural-candidate.avi -vf 'scale=216:384,tile=9x1' -frames:v 1 best-contact.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vace-ensemble-structural-qa
+          path: |
+            qa-ranking.json
+            qa-report.txt
+            best-structural-candidate.avi
+            best-contact.png
+          if-no-files-found: ignore
+          retention-days: 3
           compression-level: 0
