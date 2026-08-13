@@ -1,6 +1,6 @@
 {
-  "schema_version": 2,
-  "render_id": "fullbody-dance-v2",
+  "schema_version": 3,
+  "render_id": "fullbody-dance-v3",
   "execution": {
     "chatgpt_per_frame_inference": false,
     "external_mcp_inference": false,
@@ -44,25 +44,32 @@
     }
   },
   "temporal_plan": {
-    "mode": "vace_recommended_multi_clip_extension",
+    "mode": "two_5s_native_generative_chunks_with_overlap",
     "native_target_seconds": 10.0,
+    "control_keyframes_total": 41,
+    "control_sample_rate_hz": 4,
     "chunks": [
       {
         "id": "clip_A",
         "target_seconds": 5.0,
+        "control_keyframes": 21,
         "candidates": 4,
         "identity_anchor": "reference_full_body_source",
-        "motion_control": "pose_or_real_dance_control_A"
+        "motion_control": "real_non_looped_control_t0_to_t5"
       },
       {
         "id": "clip_B",
         "target_seconds": 5.0,
+        "control_keyframes": 21,
         "candidates": 4,
-        "identity_anchor": "selected_clip_A_firstclip_extension",
-        "motion_control": "pose_or_real_dance_control_B"
+        "identity_anchor": "selected_clip_A_last_generated_frame",
+        "motion_control": "real_non_looped_control_t5_to_t10_with_boundary_overlap"
       }
     ],
-    "extension_mode": "firstclip",
+    "boundary_overlap_keyframes": 1,
+    "official_vace_preferred_extension_when_supported": "firstclip",
+    "stable_diffusion_cpp_current_fallback": "selected_clip_A_last_frame_as_init_plus_overlapping_control_boundary",
+    "stable_diffusion_cpp_ref_video_firstclip_supported": false,
     "chunk_candidates_parallel": true,
     "select_best_candidate_before_next_anchor": true,
     "do_not_loop_short_control_for_final": true
@@ -73,6 +80,7 @@
     "rpc_open_internet_exposure": false,
     "model_cache": true,
     "retry_only_failed_candidate": true,
+    "adaptive_parallelism": true,
     "scale_workers_after_quality_smoke": [4, 8, 12, 16]
   },
   "delivery_contract": {
