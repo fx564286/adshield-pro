@@ -16,28 +16,14 @@ permissions:
 jobs:
   architecture-probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
-      - name: Probe runner and prebuilt client capabilities
+      - name: Build stable-diffusion.cpp RPC client
         shell: bash
         run: |
           set -euxo pipefail
           nproc | tee cpus.txt
           free -h | tee memory.txt
-          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
-          curl -L --fail --retry 3 "$URL" -o sd.zip
-          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
-          unzip -q sd.zip -d sd
-          CLI=$(find sd -type f -name 'sd-cli*' | head -n1)
-          chmod +x "$CLI"
-          "$CLI" -h > sd-cli-help.txt 2>&1
-          grep -n -E 'rpc|server|split|backend|offload|mmap|stream|cache|vid_gen|control-video' sd-cli-help.txt | tee distributed-capabilities.txt
-          test "$(grep -c -- '--rpc-servers' sd-cli-help.txt)" -ge 1
-
-      - name: Build API-compatible llama.cpp RPC server
-        shell: bash
-        run: |
-          set -euxo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build g++ git
           git clone --filter=blob:none --no-checkout https://github.com/leejet/stable-diffusion.cpp.git sd-src
@@ -46,7 +32,26 @@ jobs:
           git submodule update --init --recursive ggml
           HASH=$(cat ggml/scripts/sync-llama.last)
           echo "$HASH" | tee ../llama-compatible-commit.txt
-          cd ..
+          cmake -S . -B build-rpc -G Ninja \
+            -DSD_RPC=ON \
+            -DSD_BUILD_EXAMPLES=ON \
+            -DSD_WEBP=OFF \
+            -DSD_WEBM=OFF \
+            -DSD_BUILD_SHARED_LIBS=OFF
+          cmake --build build-rpc --target sd-cli -j "$(nproc)"
+          CLIENT=$(find build-rpc -type f -name 'sd-cli' | head -n1)
+          test -n "$CLIENT"
+          CLIENT_ABS="$PWD/$CLIENT"
+          echo "$CLIENT_ABS" | tee ../rpc-client-path.txt
+          "$CLIENT_ABS" -h > ../sd-cli-help.txt 2>&1
+          grep -n -E 'rpc|backend|split|vid_gen|control-video' ../sd-cli-help.txt | tee ../distributed-capabilities.txt
+          ldd "$CLIENT_ABS" | tee ../rpc-client-ldd.txt
+
+      - name: Build API-compatible llama.cpp RPC server
+        shell: bash
+        run: |
+          set -euxo pipefail
+          HASH=$(cat llama-compatible-commit.txt)
           mkdir llama-src
           cd llama-src
           git init -q
@@ -68,7 +73,7 @@ jobs:
           file "$RPC_ABS" | tee ../rpc-server-file.txt
           sha256sum "$RPC_ABS" | tee ../rpc-server.sha256
 
-      - name: Localhost RPC connection smoke
+      - name: Real localhost RPC device registration smoke
         shell: bash
         run: |
           set -euxo pipefail
@@ -81,28 +86,21 @@ jobs:
           for i in $(seq 1 10); do
             if ! kill -0 "$RPC_PID" 2>/dev/null; then
               cat rpc-server.log || true
-              echo 'RPC_SERVER_PROCESS=EXITED' | tee rpc-connect-report.txt
               exit 1
             fi
-            if bash -c '</dev/tcp/127.0.0.1/50052' 2>/dev/null; then
-              echo 'RPC_SERVER_PORT=OPEN' | tee rpc-connect-report.txt
-              break
-            fi
+            if bash -c '</dev/tcp/127.0.0.1/50052' 2>/dev/null; then break; fi
             sleep 1
           done
-          test -f rpc-connect-report.txt
-          grep -q 'RPC_SERVER_PORT=OPEN' rpc-connect-report.txt
-          CLI=$(find sd -type f -name 'sd-cli*' | head -n1)
-          "$CLI" --rpc-servers 127.0.0.1:50052 --list-devices > rpc-client-devices.txt 2>&1
+          CLIENT=$(cat rpc-client-path.txt)
+          "$CLIENT" --list-devices > local-devices.txt 2>&1
+          "$CLIENT" --rpc-servers 127.0.0.1:50052 --list-devices > rpc-devices.txt 2>&1
           cat rpc-server.log || true
-          cat rpc-client-devices.txt
-          if grep -q 'RPC' rpc-client-devices.txt; then
-            echo 'RPC_LOCALHOST_CONNECT=PASS' | tee -a rpc-connect-report.txt
-          else
-            echo 'RPC_LOCALHOST_CONNECT=FAIL' | tee -a rpc-connect-report.txt
-            exit 1
-          fi
-          printf 'CHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' >> rpc-connect-report.txt
+          echo '--- LOCAL ---'
+          cat local-devices.txt
+          echo '--- WITH RPC ---'
+          cat rpc-devices.txt
+          grep -E '^RPC[0-9]+' rpc-devices.txt
+          printf 'RPC_SERVER_PORT=OPEN\nRPC_LOCALHOST_CONNECT=PASS\nRPC_DEVICE_REGISTERED=PASS\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' | tee rpc-connect-report.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -111,21 +109,25 @@ jobs:
           path: |
             cpus.txt
             memory.txt
+            llama-compatible-commit.txt
+            rpc-client-path.txt
+            rpc-client-ldd.txt
             sd-cli-help.txt
             distributed-capabilities.txt
-            llama-compatible-commit.txt
             rpc-server-path.txt
             rpc-server-ldd.txt
             rpc-server-file.txt
             rpc-server.sha256
             rpc-server.log
-            rpc-client-devices.txt
+            local-devices.txt
+            rpc-devices.txt
             rpc-connect-report.txt
           if-no-files-found: ignore
           retention-days: 3
           compression-level: 0
 
   parallel-worker-probe:
+    if: ${{ contains(github.event.head_commit.message, '[PARALLEL-PROBE]') }}
     strategy:
       fail-fast: false
       matrix:
@@ -140,7 +142,6 @@ jobs:
           mkdir -p out
           {
             echo "WORKER=${{ matrix.worker }}"
-            echo "WORKER_ID=${{ github.job }}-${{ matrix.worker }}"
             echo "CPUS=$(nproc)"
             free -b | awk '/Mem:/ {print "MEM_BYTES="$2}'
             echo "SEED=$((42000 + ${{ matrix.worker }}))"
@@ -149,7 +150,6 @@ jobs:
             echo 'EXTERNAL_MCP_INFERENCE=NO'
           } | tee out/worker-${{ matrix.worker }}.txt
           sha256sum out/worker-${{ matrix.worker }}.txt > out/worker-${{ matrix.worker }}.sha256
-
       - uses: actions/upload-artifact@v4
         with:
           name: distributed-worker-${{ matrix.worker }}
