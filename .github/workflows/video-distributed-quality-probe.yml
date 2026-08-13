@@ -16,7 +16,7 @@ permissions:
 jobs:
   architecture-probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
       - name: Build stable-diffusion.cpp RPC client
         shell: bash
@@ -45,7 +45,6 @@ jobs:
           echo "$CLIENT_ABS" | tee ../rpc-client-path.txt
           "$CLIENT_ABS" -h > ../sd-cli-help.txt 2>&1
           grep -n -E 'rpc|backend|split|vid_gen|control-video' ../sd-cli-help.txt | tee ../distributed-capabilities.txt
-          ldd "$CLIENT_ABS" | tee ../rpc-client-ldd.txt
 
       - name: Build API-compatible llama.cpp RPC server
         shell: bash
@@ -69,11 +68,26 @@ jobs:
           test -n "$RPC"
           RPC_ABS="$PWD/$RPC"
           echo "$RPC_ABS" | tee ../rpc-server-path.txt
-          ldd "$RPC_ABS" | tee ../rpc-server-ldd.txt
-          file "$RPC_ABS" | tee ../rpc-server-file.txt
           sha256sum "$RPC_ABS" | tee ../rpc-server.sha256
 
-      - name: Real localhost RPC device registration smoke
+      - name: Restore verified VACE model cache
+        id: model-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: vace-1.3b-fp16-umt5-q3ks-vae-v1
+
+      - name: Verify cached model set and smoke input
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "${{ steps.model-cache.outputs.cache-hit }}" = true
+          echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
+          echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
+          echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/master/assets/cat_with_sd_cpp_42.png' -o source.png
+
+      - name: Real VACE diffusion offload to RPC0
         shell: bash
         run: |
           set -euxo pipefail
@@ -84,23 +98,45 @@ jobs:
           RPC_PID=$!
           trap 'kill $RPC_PID 2>/dev/null || true' EXIT
           for i in $(seq 1 10); do
-            if ! kill -0 "$RPC_PID" 2>/dev/null; then
-              cat rpc-server.log || true
-              exit 1
-            fi
+            if ! kill -0 "$RPC_PID" 2>/dev/null; then cat rpc-server.log; exit 1; fi
             if bash -c '</dev/tcp/127.0.0.1/50052' 2>/dev/null; then break; fi
             sleep 1
           done
           CLIENT=$(cat rpc-client-path.txt)
-          "$CLIENT" --list-devices > local-devices.txt 2>&1
-          "$CLIENT" --rpc-servers 127.0.0.1:50052 --list-devices > rpc-devices.txt 2>&1
-          cat rpc-server.log || true
-          echo '--- LOCAL ---'
-          cat local-devices.txt
-          echo '--- WITH RPC ---'
-          cat rpc-devices.txt
-          grep -E '^RPC[0-9]+' rpc-devices.txt
-          printf 'RPC_SERVER_PORT=OPEN\nRPC_LOCALHOST_CONNECT=PASS\nRPC_DEVICE_REGISTERED=PASS\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' | tee rpc-connect-report.txt
+          set +e
+          /usr/bin/time -v "$CLIENT" \
+            -M vid_gen \
+            --rpc-servers 127.0.0.1:50052 \
+            --backend 'diffusion=RPC0,te=cpu,vae=cpu' \
+            --params-backend 'diffusion=RPC0,te=cpu,vae=cpu' \
+            --diffusion-model models/vace-fp16.safetensors \
+            --vae models/wan-vae.safetensors \
+            --t5xxl models/umt5-q3ks.gguf \
+            -i source.png \
+            -p 'a subject moving naturally' \
+            -n 'deformed, duplicate limbs, blurry' \
+            --cfg-scale 1.0 \
+            --sampling-method euler \
+            --steps 1 \
+            --flow-shift 3.0 \
+            --video-frames 5 \
+            --fps 4 \
+            --mmap \
+            --vae-tiling \
+            -t 4 \
+            -W 128 -H 128 \
+            -o rpc-vace-smoke.avi \
+            -v > rpc-client.log 2>&1
+          RC=$?
+          set -e
+          cat rpc-client.log
+          cat rpc-server.log
+          echo "RPC_VACE_EXIT=$RC" | tee rpc-connect-report.txt
+          test "$RC" -eq 0
+          test -s rpc-vace-smoke.avi
+          grep -Eqi 'RPC0|rpc' rpc-client.log
+          grep -Eqi 'Accepted client connection|alloc|buffer|tensor|graph' rpc-server.log
+          printf 'RPC_SERVER_PORT=OPEN\nRPC_REAL_MODEL_OFFLOAD=PASS\nRPC_VACE_GENERATION=PASS\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' | tee -a rpc-connect-report.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -111,17 +147,14 @@ jobs:
             memory.txt
             llama-compatible-commit.txt
             rpc-client-path.txt
-            rpc-client-ldd.txt
             sd-cli-help.txt
             distributed-capabilities.txt
             rpc-server-path.txt
-            rpc-server-ldd.txt
-            rpc-server-file.txt
             rpc-server.sha256
             rpc-server.log
-            local-devices.txt
-            rpc-devices.txt
+            rpc-client.log
             rpc-connect-report.txt
+            rpc-vace-smoke.avi
           if-no-files-found: ignore
           retention-days: 3
           compression-level: 0
@@ -149,7 +182,6 @@ jobs:
             echo 'CHATGPT_PER_FRAME_INFERENCE=NO'
             echo 'EXTERNAL_MCP_INFERENCE=NO'
           } | tee out/worker-${{ matrix.worker }}.txt
-          sha256sum out/worker-${{ matrix.worker }}.txt > out/worker-${{ matrix.worker }}.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: distributed-worker-${{ matrix.worker }}
