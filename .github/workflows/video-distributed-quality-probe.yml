@@ -7,20 +7,19 @@ on:
       - 'video_toolchain/distributed/**'
   workflow_dispatch:
 
-# This workflow is intentionally independent of ChatGPT/MCP inference tokens.
-# GitHub Actions performs the direct model/runtime work after the job is launched.
+# Direct compute only. No ChatGPT/MCP per-frame inference.
 
 jobs:
   architecture-probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Probe runner and stable-diffusion.cpp distributed capabilities
+      - name: Probe runner and prebuilt client capabilities
         shell: bash
         run: |
           set -euxo pipefail
-          nproc
-          free -h
+          nproc | tee cpus.txt
+          free -h | tee memory.txt
           URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
           curl -L --fail --retry 3 "$URL" -o sd.zip
           echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
@@ -30,29 +29,91 @@ jobs:
           chmod +x "$CLI"
           "$CLI" -h > sd-cli-help.txt 2>&1
           grep -n -E 'rpc|server|split|backend|offload|mmap|stream|cache|vid_gen|control-video' sd-cli-help.txt | tee distributed-capabilities.txt
-          RPC=$(find sd -type f \( -name '*rpc*server*' -o -name 'rpc-server*' \) | head -n1 || true)
-          if [ -n "$RPC" ]; then
-            chmod +x "$RPC"
-            "$RPC" --help > rpc-server-help.txt 2>&1 || true
-            printf 'RPC_SERVER_BINARY=PASS\nRPC_SERVER_PATH=%s\n' "$RPC" | tee rpc-report.txt
+          test "$(grep -c -- '--rpc-servers' sd-cli-help.txt)" -ge 1
+
+      - name: Build API-compatible llama.cpp RPC server
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build g++ git
+          git clone --filter=blob:none --no-checkout https://github.com/leejet/stable-diffusion.cpp.git sd-src
+          cd sd-src
+          git checkout de298c225bed97c3f9026b73cd7b71e7879bd41b
+          HASH=$(cat ggml/scripts/sync-llama.last)
+          echo "$HASH" | tee ../llama-compatible-commit.txt
+          cd ..
+          mkdir llama-src
+          cd llama-src
+          git init -q
+          git remote add origin https://github.com/ggml-org/llama.cpp.git
+          git fetch --depth 1 origin "$HASH"
+          git checkout -q FETCH_HEAD
+          cmake -S . -B build -G Ninja \
+            -DGGML_RPC=ON \
+            -DGGML_BUILD_SHARED_LIBS=OFF \
+            -DLLAMA_CURL=OFF \
+            -DCMAKE_C_FLAGS=-DGGML_MAX_NAME=128 \
+            -DCMAKE_CXX_FLAGS=-DGGML_MAX_NAME=128
+          cmake --build build --target rpc-server -j "$(nproc)"
+          RPC=$(find build -type f -name 'rpc-server' | head -n1)
+          test -n "$RPC"
+          cp "$RPC" ../rpc-server
+          cd ..
+          chmod +x rpc-server
+          ./rpc-server --help > rpc-server-help.txt 2>&1 || true
+          file rpc-server | tee rpc-server-file.txt
+          sha256sum rpc-server | tee rpc-server.sha256
+
+      - name: Localhost RPC connection smoke
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ./rpc-server --host 127.0.0.1 --port 50052 > rpc-server.log 2>&1 &
+          RPC_PID=$!
+          trap 'kill $RPC_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if grep -Eqi 'listening|server' rpc-server.log; then break; fi
+            sleep 1
+          done
+          CLI=$(find sd -type f -name 'sd-cli*' | head -n1)
+          set +e
+          "$CLI" --rpc-servers 127.0.0.1:50052 --list-devices > rpc-client-devices.txt 2>&1
+          RC=$?
+          set -e
+          cat rpc-server.log
+          cat rpc-client-devices.txt
+          echo "RPC_CLIENT_EXIT=$RC" | tee rpc-connect-report.txt
+          if grep -q 'RPC' rpc-client-devices.txt; then
+            echo 'RPC_LOCALHOST_CONNECT=PASS' | tee -a rpc-connect-report.txt
           else
-            printf 'RPC_SERVER_BINARY=ABSENT_IN_RELEASE\n' | tee rpc-report.txt
+            echo 'RPC_LOCALHOST_CONNECT=FAIL' | tee -a rpc-connect-report.txt
+            exit 1
           fi
+          printf 'CHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' >> rpc-connect-report.txt
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: distributed-capability-probe
           path: |
+            cpus.txt
+            memory.txt
             runtime-files.txt
             sd-cli-help.txt
             distributed-capabilities.txt
+            llama-compatible-commit.txt
+            rpc-server
             rpc-server-help.txt
-            rpc-report.txt
+            rpc-server-file.txt
+            rpc-server.sha256
+            rpc-server.log
+            rpc-client-devices.txt
+            rpc-connect-report.txt
           if-no-files-found: ignore
           retention-days: 3
+          compression-level: 0
 
-  # Independent containers/runners. This validates that multiple render candidates can
-  # execute concurrently without any per-frame ChatGPT/MCP calls.
   parallel-worker-probe:
     strategy:
       fail-fast: false
@@ -68,6 +129,7 @@ jobs:
           mkdir -p out
           {
             echo "WORKER=${{ matrix.worker }}"
+            echo "HOST=$(hostname)"
             echo "CPUS=$(nproc)"
             free -b | awk '/Mem:/ {print "MEM_BYTES="$2}'
             echo "SEED=$((42000 + ${{ matrix.worker }}))"
