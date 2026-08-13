@@ -1,11 +1,11 @@
-name: video-toolchain-vace-smoke
+name: video-toolchain-vace-human-v2v
 on:
   push:
     branches: [video-toolchain-probe]
   workflow_dispatch:
 
 jobs:
-  vace-smoke:
+  vace-human-v2v:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -17,6 +17,8 @@ jobs:
           nproc
           free -h
           df -h .
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
 
       - name: Download stable-diffusion.cpp CPU runtime
         shell: bash
@@ -30,7 +32,15 @@ jobs:
           chmod +x "$CLI"
           "$CLI" -h | grep -E 'vid_gen|video-frames|control-video|offload-to-cpu|rpc-servers|mmap'
 
-      - name: Download compatible VACE model set
+      - name: Restore model cache
+        id: model-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: vace-1.3b-fp16-umt5-q3ks-vae-v1
+
+      - name: Download and verify compatible VACE model set
+        if: steps.model-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euxo pipefail
@@ -41,18 +51,37 @@ jobs:
           echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
           echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
           echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
-          ls -lh models
-          free -h
-          df -h .
 
-      - name: Download smoke input
+      - name: Save model cache
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: models
+          key: vace-1.3b-fp16-umt5-q3ks-vae-v1
+
+      - name: Verify model integrity
         shell: bash
         run: |
           set -euxo pipefail
-          curl -L --fail --retry 3 'https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/master/assets/cat_with_sd_cpp_42.png' -o source.png
+          echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
+          echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
+          echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
+          ls -lh models
+          free -h
+
+      - name: Prepare public full-body dance source and motion control
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/de298c225bed97c3f9026b73cd7b71e7879bd41b/assets/wan/Wan2.1_1.3B_vace_v2v.mp4' -o official-dance.mp4
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration -of json official-dance.mp4 | tee official-source-probe.json
+          mkdir -p control
+          ffmpeg -y -v error -i official-dance.mp4 -vf 'fps=4,scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' -frames:v 9 control/frame_%04d.png
+          ffmpeg -y -v error -i official-dance.mp4 -vf 'select=eq(n\,0),scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' -frames:v 1 source.png
+          test "$(find control -name 'frame_*.png' | wc -l)" -eq 9
           file source.png
 
-      - name: Actual VACE generative smoke inference
+      - name: Actual human VACE V2V generative inference
         shell: bash
         run: |
           set -euxo pipefail
@@ -63,34 +92,40 @@ jobs:
             --vae models/wan-vae.safetensors \
             --t5xxl models/umt5-q3ks.gguf \
             -i source.png \
-            -p 'a subject dancing with clear articulated body motion, cinematic natural movement' \
-            -n 'static, deformed, duplicate limbs, blurry' \
-            --cfg-scale 1.0 \
+            --control-video control \
+            -p 'a young adult woman performing a natural energetic idol dance in a studio, coherent full body, realistic face, natural arms and legs, consistent clothing, cinematic movement' \
+            -n 'static, deformed, duplicate limbs, extra arms, extra legs, extra fingers, broken hands, distorted face, ghosting, blurry, melting body' \
+            --cfg-scale 6.0 \
             --sampling-method euler \
-            --steps 1 \
+            --steps 8 \
             --flow-shift 3.0 \
-            --video-frames 5 \
+            --video-frames 9 \
             --fps 4 \
             --offload-to-cpu \
             --mmap \
             --vae-tiling \
+            --diffusion-fa \
             -t 4 \
-            -W 256 -H 256 \
-            -o vace-smoke.avi \
-            -v 2>&1 | tee vace-smoke.log
-          test -s vace-smoke.avi
-          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration -of json vace-smoke.avi | tee vace-smoke-ffprobe.json
-          printf 'REAL_VACE_GENERATIVE_INFERENCE=PASS\nEXTERNAL_MCP_INFERENCE=NO\n' > vace-smoke-report.txt
+            -W 288 -H 512 \
+            -o human-v2v.avi \
+            -v 2>&1 | tee human-v2v.log
+          test -s human-v2v.avi
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,nb_frames -show_entries format=duration,size -of json human-v2v.avi | tee human-v2v-ffprobe.json
+          ffmpeg -y -v error -i human-v2v.avi -vf 'scale=216:384,tile=9x1' -frames:v 1 human-v2v-contact.png
+          printf 'REAL_VACE_HUMAN_V2V=PASS\nEXTERNAL_MCP_INFERENCE=NO\n' > human-v2v-report.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: vace-generative-smoke-fp16
+          name: vace-human-v2v
           path: |
-            vace-smoke.avi
-            vace-smoke.log
-            vace-smoke-ffprobe.json
-            vace-smoke-report.txt
+            human-v2v.avi
+            human-v2v.log
+            human-v2v-ffprobe.json
+            human-v2v-contact.png
+            human-v2v-report.txt
+            source.png
+            official-source-probe.json
           if-no-files-found: ignore
           retention-days: 1
           compression-level: 0
