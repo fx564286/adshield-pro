@@ -56,8 +56,8 @@ jobs:
             -DLLAMA_CURL=OFF \
             -DCMAKE_C_FLAGS=-DGGML_MAX_NAME=128 \
             -DCMAKE_CXX_FLAGS=-DGGML_MAX_NAME=128
-          cmake --build build --target rpc-server -j "$(nproc)"
-          RPC=$(find build -type f -name 'rpc-server' | head -n1)
+          cmake --build build --target ggml-rpc-server -j "$(nproc)"
+          RPC=$(find build -type f -name 'ggml-rpc-server' | head -n1)
           test -n "$RPC"
           cp "$RPC" ../rpc-server
           cd ..
