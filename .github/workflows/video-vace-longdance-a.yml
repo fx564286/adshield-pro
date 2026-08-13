@@ -1,0 +1,144 @@
+name: video-vace-longdance-a
+on:
+  push:
+    branches: [video-toolchain-probe]
+    paths:
+      - '.github/workflows/video-vace-longdance-a.yml'
+      - 'video_toolchain/distributed/longdance_a_revision.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MODEL_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+
+jobs:
+  render-a:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[LONGDANCE-A]') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - worker: 0
+            seed: 42100
+          - worker: 1
+            seed: 42101
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - name: Runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          nproc
+          free -h
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --quiet --break-system-packages 'mediapipe==0.10.21' opencv-python-headless numpy
+
+      - name: Runtime + models
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
+          curl -L --fail --retry 3 "$URL" -o sd.zip
+          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
+          unzip -q sd.zip -d sd
+          chmod +x sd/sd-cli
+
+      - name: Restore VACE model cache
+        id: model-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: ${{ env.MODEL_CACHE_KEY }}
+
+      - name: Verify models
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "${{ steps.model-cache.outputs.cache-hit }}" = true
+          echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
+          echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
+          echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
+
+      - name: Build real 0-5s single-person pose control
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 4 'https://commons.wikimedia.org/wiki/Special:Redirect/file/A%20woman%20on%20dancing%20floor.webm' -o source.webm
+          mkdir -p rgb41 controlA
+          ffmpeg -y -v error -ss 5 -i source.webm -vf 'fps=4,scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' -frames:v 41 rgb41/frame_%04d.png
+          cat > pose.py <<'PY'
+          import cv2, glob, numpy as np, mediapipe as mp, os
+          Pose=mp.solutions.pose.Pose; CONN=list(mp.solutions.pose.POSE_CONNECTIONS)
+          files=sorted(glob.glob('rgb41/frame_*.png')); seq=[]
+          with Pose(static_image_mode=True, model_complexity=2, enable_segmentation=False, min_detection_confidence=.45) as p:
+            for path in files:
+              im=cv2.imread(path); h,w=im.shape[:2]; x0=int(w*.12); x1=int(w*.88); crop=im[:,x0:x1]
+              r=p.process(cv2.cvtColor(crop,cv2.COLOR_BGR2RGB)); arr=None
+              if r.pose_landmarks:
+                pts=np.array([[x0+lm.x*(x1-x0),lm.y*h,lm.visibility] for lm in r.pose_landmarks.landmark],np.float32)
+                if float(np.mean(pts[[11,12,23,24,25,26],2]))>=.35: arr=pts
+              seq.append(arr)
+          good=[i for i,x in enumerate(seq) if x is not None]
+          for i,x in enumerate(seq):
+            if x is not None: continue
+            lo=max([g for g in good if g<i],default=None); hi=min([g for g in good if g>i],default=None)
+            if lo is not None and hi is not None:
+              a=(i-lo)/(hi-lo); seq[i]=(1-a)*seq[lo]+a*seq[hi]
+            elif lo is not None: seq[i]=seq[lo].copy()
+            elif hi is not None: seq[i]=seq[hi].copy()
+            else: raise SystemExit('no pose anchors')
+          for i,pts in enumerate(seq[:21],1):
+            c=np.zeros((512,288,3),np.uint8)
+            for a,b in CONN:
+              xa,ya,va=pts[a]; xb,yb,vb=pts[b]
+              if min(va,vb)>=.12: cv2.line(c,(int(xa),int(ya)),(int(xb),int(yb)),(255,255,255),3,cv2.LINE_AA)
+            for x,y,v in pts:
+              if v>=.12: cv2.circle(c,(int(x),int(y)),4,(255,255,255),-1,cv2.LINE_AA)
+            cv2.imwrite(f'controlA/frame_{i:04d}.png',c)
+          PY
+          python3 pose.py
+          test "$(find controlA -name 'frame_*.png' | wc -l)" -eq 21
+          cp rgb41/frame_0001.png source.png
+          ffmpeg -y -v error -framerate 4 -i controlA/frame_%04d.png -vf 'scale=144:256,tile=7x3' -frames:v 1 controlA-contact.png
+
+      - name: Actual 5s long-dance VACE inference
+        shell: bash
+        run: |
+          set -euxo pipefail
+          /usr/bin/time -v sd/sd-cli \
+            -M vid_gen \
+            --diffusion-model models/vace-fp16.safetensors \
+            --vae models/wan-vae.safetensors \
+            --t5xxl models/umt5-q3ks.gguf \
+            -i source.png \
+            --control-video controlA \
+            -p 'a young adult woman performing a natural energetic full body dance in a clean modern studio, photorealistic, stable realistic face, anatomically correct arms legs and hands, consistent clothing, strong articulated movement, full body visible' \
+            -n 'static, crowd, background people, deformed, duplicate limbs, extra arms, extra legs, extra fingers, broken hands, distorted face, ghosting, blurry, melting body, fused limbs' \
+            --cfg-scale 6.0 --sampling-method euler --steps 6 --flow-shift 3.0 \
+            --video-frames 21 --fps 4 --seed ${{ matrix.seed }} \
+            --offload-to-cpu --mmap --vae-tiling --diffusion-fa -t 4 -W 288 -H 512 \
+            -o longdance-a-${{ matrix.worker }}.avi -v 2>&1 | tee longdance-a-${{ matrix.worker }}.log
+          test -s longdance-a-${{ matrix.worker }}.avi
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json longdance-a-${{ matrix.worker }}.avi > ffprobe-${{ matrix.worker }}.json
+          ffmpeg -y -v error -i longdance-a-${{ matrix.worker }}.avi -vf 'scale=144:256,tile=7x3' -frames:v 1 result-contact-${{ matrix.worker }}.png
+          printf 'REAL_GENERATIVE_LONGDANCE_A=PASS\nSEED=${{ matrix.seed }}\nCONTROL_FRAMES=21\nCHATGPT_PER_FRAME_INFERENCE=NO\n' > report-${{ matrix.worker }}.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: longdance-a-${{ matrix.worker }}-seed-${{ matrix.seed }}
+          path: |
+            longdance-a-${{ matrix.worker }}.avi
+            longdance-a-${{ matrix.worker }}.log
+            ffprobe-${{ matrix.worker }}.json
+            result-contact-${{ matrix.worker }}.png
+            controlA-contact.png
+            report-${{ matrix.worker }}.txt
+          if-no-files-found: ignore
+          retention-days: 3
+          compression-level: 0
