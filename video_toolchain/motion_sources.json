@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "wikimedia_woman_dancing_floor_2023",
+      "purpose": "long-form real-human full-body motion control candidate",
+      "page": "https://commons.wikimedia.org/wiki/File:A_woman_on_dancing_floor.webm",
+      "download": "https://commons.wikimedia.org/wiki/Special:Redirect/file/A%20woman%20on%20dancing%20floor.webm",
+      "duration_seconds": 39.563,
+      "resolution": "480x640",
+      "subject": "single woman dancing",
+      "source_type": "own work by uploader",
+      "author": "Munkaila Sulemana",
+      "license": "CC BY-SA 4.0",
+      "license_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "use": "extract a non-looped 10s+ real motion segment; appearance/style is not copied as target identity",
+      "final_control_rule": "derive pose/motion control only; do not loop the 2.06s stable-diffusion.cpp smoke sample"
+    }
+  ]
+}
