@@ -1,0 +1,107 @@
+name: video-wan22-real-inference
+on:
+  push:
+    branches: [video-toolchain-probe]
+    paths:
+      - '.github/workflows/video-wan22-real-inference.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+  WAN22_CACHE_KEY: wan22-ti2v-5b-q4km-umt5-q3ks-vae-v1
+
+jobs:
+  wan22-real-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          nproc
+          free -h
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg jq
+
+      - name: Install Wan2.2 runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
+          curl -L --fail --retry 4 "$URL" -o sd.zip
+          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
+          unzip -q sd.zip -d sd
+          chmod +x sd/sd-cli
+
+      - name: Restore shared UMT5 cache
+        id: base-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: ${{ env.BASE_CACHE_KEY }}
+
+      - name: Restore Wan2.2 cache
+        id: wan22-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: wan22_models
+          key: ${{ env.WAN22_CACHE_KEY }}
+
+      - name: Verify Wan2.2 model set
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "${{ steps.base-cache.outputs.cache-hit }}" = true
+          test "${{ steps.wan22-cache.outputs.cache-hit }}" = true
+          MODEL_REL="$(cat wan22_models/model-file.txt)"
+          test -s "wan22_models/$MODEL_REL"
+          test -s wan22_models/split_files/vae/wan2.2_vae.safetensors
+          test -s models/umt5-q3ks.gguf
+          echo "MODEL=$MODEL_REL"
+
+      - name: Actual Wan2.2 generative dance gate
+        shell: bash
+        run: |
+          set -euxo pipefail
+          MODEL_REL="$(cat wan22_models/model-file.txt)"
+          /usr/bin/time -v sd/sd-cli \
+            -M vid_gen \
+            --diffusion-model "wan22_models/$MODEL_REL" \
+            --vae wan22_models/split_files/vae/wan2.2_vae.safetensors \
+            --t5xxl models/umt5-q3ks.gguf \
+            -p 'photorealistic adult woman performing an energetic natural full body dance in a clean modern studio, full body continuously visible, stable realistic facial identity, anatomically correct arms hands hips knees and legs, consistent fitted dance clothing, realistic skin and hair, cinematic natural lighting, articulated body motion' \
+            -n 'child, crowd, background people, static pose, deformed face, changing face, duplicate limbs, extra arms, extra legs, fused limbs, missing hands, broken wrists, malformed knees, extra fingers, melted body, ghosting, motion smear, low detail, blurry' \
+            --cfg-scale 5.0 --sampling-method euler --steps 8 --flow-shift 3.0 \
+            --video-frames 9 --fps 4 --seed 44000 \
+            --diffusion-fa --offload-to-cpu --mmap --vae-tiling -t 4 \
+            -W 384 -H 672 -o wan22-gate.avi -v 2>&1 | tee wan22-gate.log
+          test -s wan22-gate.avi
+
+      - name: QA artifacts and H264 preview
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json wan22-gate.avi | tee ffprobe.json
+          ffmpeg -y -v error -i wan22-gate.avi -c:v libx264 -pix_fmt yuv420p -movflags +faststart wan22-gate.mp4
+          ffmpeg -y -v error -i wan22-gate.avi -vf 'scale=192:336,tile=3x3' -frames:v 1 wan22-contact.png
+          printf 'WAN22_REAL_GENERATIVE_GATE=PASS\nMODEL=TI2V-5B-Q4\nSEED=44000\nRESOLUTION=384x672\nNATIVE_FRAMES=9\nMANUAL_VISUAL_QA_REQUIRED=YES\n' > report.txt
+
+      - name: Upload real Wan2.2 gate
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wan22-real-gate-seed-44000
+          path: |
+            wan22-gate.avi
+            wan22-gate.mp4
+            wan22-gate.log
+            wan22-contact.png
+            ffprobe.json
+            report.txt
+          if-no-files-found: ignore
+          retention-days: 5
+          compression-level: 0
