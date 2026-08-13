@@ -1,0 +1,3 @@
+revision=1
+purpose=trigger real 5s long-dance VACE clip A two-seed render
+control=21-frame single-person pose trajectory from real 10s dance source
