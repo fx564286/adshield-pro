@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  POSE_REVISION: '2'
+  POSE_REVISION: '3'
 
 jobs:
   pose-control:
@@ -22,7 +22,13 @@ jobs:
           set -euxo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
-          python3 -m pip install --quiet --break-system-packages mediapipe opencv-python-headless numpy
+          python3 -m pip install --quiet --break-system-packages 'mediapipe==0.10.21' opencv-python-headless numpy
+          python3 - <<'PY'
+          import mediapipe as mp
+          assert hasattr(mp, 'solutions'), mp.__file__
+          assert hasattr(mp.solutions, 'pose')
+          print('MEDIAPIPE_SOLUTIONS_API=PASS', mp.__version__)
+          PY
 
       - name: Download and extract 41 real motion frames
         shell: bash
@@ -97,6 +103,7 @@ jobs:
           ffmpeg -y -v error -framerate 4 -i pose41/frame_%04d.png -c:v libx264 -pix_fmt yuv420p pose-control-10s.mp4
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: isolated-real-human-pose-control
           path: |
@@ -104,7 +111,9 @@ jobs:
             pose-detection.json
             pose-contact.png
             pose-control-10s.mp4
+            pose41/
             poseA/
             poseB/
+          if-no-files-found: ignore
           retention-days: 3
           compression-level: 0
