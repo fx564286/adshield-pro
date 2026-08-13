@@ -76,10 +76,12 @@ jobs:
           curl -L --fail --retry 3 'https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/de298c225bed97c3f9026b73cd7b71e7879bd41b/assets/wan/Wan2.1_1.3B_vace_v2v.mp4' -o official-dance.mp4
           ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration -of json official-dance.mp4 | tee official-source-probe.json
           mkdir -p control
-          ffmpeg -y -v error -i official-dance.mp4 -vf 'fps=4,scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' -frames:v 9 control/frame_%04d.png
+          ffmpeg -y -v error -i official-dance.mp4 -vf "select='not(mod(n,4))',scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black" -vsync 0 -frames:v 9 control/frame_%04d.png
           ffmpeg -y -v error -i official-dance.mp4 -vf 'select=eq(n\,0),scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' -frames:v 1 source.png
           test "$(find control -name 'frame_*.png' | wc -l)" -eq 9
           file source.png
+          sha256sum control/frame_*.png | tee control-frame-sha256.txt
+          test "$(sha256sum control/frame_*.png | awk '{print $1}' | sort -u | wc -l)" -eq 9
 
       - name: Actual human VACE V2V generative inference
         shell: bash
@@ -126,6 +128,7 @@ jobs:
             human-v2v-report.txt
             source.png
             official-source-probe.json
+            control-frame-sha256.txt
           if-no-files-found: ignore
           retention-days: 1
           compression-level: 0
