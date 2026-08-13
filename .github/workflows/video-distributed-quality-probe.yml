@@ -62,10 +62,11 @@ jobs:
           cmake --build build --target ggml-rpc-server -j "$(nproc)"
           RPC=$(find build -type f -name 'ggml-rpc-server' | head -n1)
           test -n "$RPC"
-          echo "$RPC" | tee ../rpc-server-path.txt
-          ldd "$RPC" | tee ../rpc-server-ldd.txt
-          file "$RPC" | tee ../rpc-server-file.txt
-          sha256sum "$RPC" | tee ../rpc-server.sha256
+          RPC_ABS="$PWD/$RPC"
+          echo "$RPC_ABS" | tee ../rpc-server-path.txt
+          ldd "$RPC_ABS" | tee ../rpc-server-ldd.txt
+          file "$RPC_ABS" | tee ../rpc-server-file.txt
+          sha256sum "$RPC_ABS" | tee ../rpc-server.sha256
 
       - name: Localhost RPC connection smoke
         shell: bash
@@ -73,7 +74,7 @@ jobs:
           set -euxo pipefail
           RPC=$(cat rpc-server-path.txt)
           RPC_DIR=$(dirname "$RPC")
-          export LD_LIBRARY_PATH="$PWD/$RPC_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          export LD_LIBRARY_PATH="$RPC_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           "$RPC" --host 127.0.0.1 --port 50052 > rpc-server.log 2>&1 &
           RPC_PID=$!
           trap 'kill $RPC_PID 2>/dev/null || true' EXIT
