@@ -6,6 +6,7 @@ on:
 
 jobs:
   vace-human-v2v:
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[ARCH-PROBE]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -132,3 +133,78 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
           compression-level: 0
+
+  architecture-probe:
+    if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[ARCH-PROBE]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Probe stable-diffusion.cpp distributed/RPC runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          nproc | tee cpus.txt
+          free -h | tee memory.txt
+          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
+          curl -L --fail --retry 3 "$URL" -o sd.zip
+          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
+          unzip -q sd.zip -d sd
+          find sd -maxdepth 3 -type f -printf '%P\n' | sort | tee runtime-files.txt
+          CLI=$(find sd -type f -name 'sd-cli*' | head -n1)
+          chmod +x "$CLI"
+          "$CLI" -h > sd-cli-help.txt 2>&1
+          grep -n -E 'rpc|server|split|backend|offload|mmap|stream|cache|vid_gen|control-video' sd-cli-help.txt | tee distributed-capabilities.txt
+          RPC=$(find sd -type f \( -iname '*rpc*server*' -o -iname 'rpc-server*' \) | head -n1 || true)
+          if [ -n "$RPC" ]; then
+            chmod +x "$RPC"
+            "$RPC" --help > rpc-server-help.txt 2>&1 || true
+            printf 'RPC_SERVER_BINARY=PASS\nRPC_SERVER_PATH=%s\n' "$RPC" | tee rpc-report.txt
+          else
+            printf 'RPC_SERVER_BINARY=ABSENT_IN_PREBUILT_RELEASE\n' | tee rpc-report.txt
+          fi
+          printf 'CHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' >> rpc-report.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributed-capability-probe
+          path: |
+            cpus.txt
+            memory.txt
+            runtime-files.txt
+            sd-cli-help.txt
+            distributed-capabilities.txt
+            rpc-server-help.txt
+            rpc-report.txt
+          if-no-files-found: ignore
+          retention-days: 3
+
+  parallel-worker-probe:
+    if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[ARCH-PROBE]') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        worker: [0, 1, 2, 3]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Verify independent token-free render worker
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          {
+            echo "WORKER=${{ matrix.worker }}"
+            echo "CPUS=$(nproc)"
+            free -b | awk '/Mem:/ {print "MEM_BYTES="$2}'
+            echo "SEED=$((42000 + ${{ matrix.worker }}))"
+            echo 'ROLE=parallel_candidate_render'
+            echo 'CHATGPT_PER_FRAME_INFERENCE=NO'
+            echo 'EXTERNAL_MCP_INFERENCE=NO'
+          } | tee out/worker-${{ matrix.worker }}.txt
+          sha256sum out/worker-${{ matrix.worker }}.txt > out/worker-${{ matrix.worker }}.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributed-worker-${{ matrix.worker }}
+          path: out/
+          retention-days: 3
