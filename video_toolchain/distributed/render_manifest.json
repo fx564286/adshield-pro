@@ -1,12 +1,13 @@
 {
-  "schema_version": 1,
-  "render_id": "fullbody-dance-v1",
+  "schema_version": 2,
+  "render_id": "fullbody-dance-v2",
   "execution": {
     "chatgpt_per_frame_inference": false,
     "external_mcp_inference": false,
     "persistent_direct_compute": true,
     "preferred_backend": "github_actions_parallel_vace",
-    "secondary_backend": "stable_diffusion_cpp_rpc_private_network"
+    "secondary_backend": "stable_diffusion_cpp_rpc_private_network",
+    "chat_role": "submit_manifest_and_review_artifacts_only"
   },
   "model": {
     "family": "Wan2.1-VACE-1.3B",
@@ -17,36 +18,79 @@
   "quality_strategy": {
     "candidate_workers": 4,
     "candidate_seeds": [42000, 42001, 42002, 42003],
+    "best_of_n_per_chunk": 4,
     "generate_genuine_semantic_motion": true,
     "reject_optical_flow_as_final_generation": true,
+    "reject_crossfade_as_final_generation": true,
     "reject_frame_duplication_as_semantic_motion": true,
-    "qa": [
-      "face_identity_consistency",
-      "arms_legs_topology",
-      "hand_integrity",
-      "occlusion_consistency",
-      "duplicate_limbs",
-      "ghosting",
-      "motion_coherence"
-    ]
+    "qa": {
+      "hard_gates": [
+        "full_body_visible",
+        "single_head",
+        "two_arms_topology",
+        "two_legs_topology",
+        "no_duplicate_limbs",
+        "no_body_crossfade_ghosting"
+      ],
+      "rank_metrics": [
+        "face_identity_consistency",
+        "hand_integrity",
+        "occlusion_consistency",
+        "landmark_temporal_continuity",
+        "motion_coherence",
+        "control_motion_adherence"
+      ],
+      "manual_visual_gate_before_final": true
+    }
   },
   "temporal_plan": {
-    "mode": "overlapped_chunks_with_identity_anchor",
+    "mode": "vace_recommended_multi_clip_extension",
+    "native_target_seconds": 10.0,
+    "chunks": [
+      {
+        "id": "clip_A",
+        "target_seconds": 5.0,
+        "candidates": 4,
+        "identity_anchor": "reference_full_body_source",
+        "motion_control": "pose_or_real_dance_control_A"
+      },
+      {
+        "id": "clip_B",
+        "target_seconds": 5.0,
+        "candidates": 4,
+        "identity_anchor": "selected_clip_A_firstclip_extension",
+        "motion_control": "pose_or_real_dance_control_B"
+      }
+    ],
+    "extension_mode": "firstclip",
     "chunk_candidates_parallel": true,
-    "select_best_candidate_before_next_anchor": true
+    "select_best_candidate_before_next_anchor": true,
+    "do_not_loop_short_control_for_final": true
+  },
+  "compute_policy": {
+    "parallel_candidate_generation": true,
+    "rpc_component_offload_when_private_network_available": true,
+    "rpc_open_internet_exposure": false,
+    "model_cache": true,
+    "retry_only_failed_candidate": true,
+    "scale_workers_after_quality_smoke": [4, 8, 12, 16]
   },
   "delivery_contract": {
     "duration_seconds": 10.0,
     "fps": 60,
     "video_frames": 600,
     "codec": "H.264",
-    "container": "MP4"
+    "container": "MP4",
+    "temporal_conversion_allowed_only_after_native_semantic_motion_pass": true
   },
   "pass_contract": {
     "GENERATIVE_FULL_BODY": "PASS",
     "FACE_IDENTITY": "PASS",
     "ARMS_LEGS_TOPOLOGY": "PASS",
     "NO_GHOSTING": "PASS",
+    "DURATION": "10.000s",
+    "FPS": "60/1",
+    "VIDEO_FRAMES": 600,
     "PLAYABLE_MP4": "PASS",
     "EXTERNAL_MCP_REQUIRED": "NO",
     "TOKEN_DEPENDENT_RENDER": "FAIL"
