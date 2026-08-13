@@ -7,6 +7,9 @@ on:
       - 'video_toolchain/motion_sources.json'
   workflow_dispatch:
 
+env:
+  CONTROL_REVISION: '2'
+
 jobs:
   build-control:
     if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[CONTROL]') }}
@@ -32,14 +35,12 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p control10 clipA clipB
-          # 41 distinct temporal samples spanning t=5.000 through t=15.000 inclusive at 4 Hz.
           ffmpeg -y -v error -ss 5 -i motion-source.webm \
             -vf 'fps=4,scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' \
             -frames:v 41 control10/frame_%04d.png
           test "$(find control10 -name 'frame_*.png' | wc -l)" -eq 41
           test "$(sha256sum control10/frame_*.png | awk '{print $1}' | sort -u | wc -l)" -eq 41
           for n in $(seq -w 1 21); do cp "control10/frame_00${n}.png" "clipA/frame_00${n}.png"; done
-          # clip B overlaps the 21st frame and continues through frame 41.
           i=1
           for src in $(seq 21 41); do
             printf -v s '%04d' "$src"
