@@ -40,6 +40,7 @@ jobs:
           git clone --filter=blob:none --no-checkout https://github.com/leejet/stable-diffusion.cpp.git sd-src
           cd sd-src
           git checkout de298c225bed97c3f9026b73cd7b71e7879bd41b
+          git submodule update --init --recursive ggml
           HASH=$(cat ggml/scripts/sync-llama.last)
           echo "$HASH" | tee ../llama-compatible-commit.txt
           cd ..
