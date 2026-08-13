@@ -28,17 +28,17 @@ jobs:
           unzip -q sd-cpp.zip -d sd-cpp
           CLI=$(find sd-cpp -type f -name 'sd-cli*' | head -n1)
           chmod +x "$CLI"
-          "$CLI" -h | grep -E 'vid_gen|video-frames|control-video|offload-to-cpu'
+          "$CLI" -h | grep -E 'vid_gen|video-frames|control-video|offload-to-cpu|rpc-servers|mmap'
 
-      - name: Download minimum VACE model set
+      - name: Download compatible VACE model set
         shell: bash
         run: |
           set -euxo pipefail
           mkdir -p models
-          curl -L --fail --retry 4 'https://huggingface.co/calcuis/wan-1.3b-gguf/resolve/main/wan2.1-vace-1.3b-q2_k.gguf?download=true' -o models/vace-q2.gguf
+          curl -L --fail --retry 4 'https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/diffusion_models/wan2.1_vace_1.3B_fp16.safetensors?download=true' -o models/vace-fp16.safetensors
           curl -L --fail --retry 4 'https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q3_K_S.gguf?download=true' -o models/umt5-q3ks.gguf
           curl -L --fail --retry 4 'https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors?download=true' -o models/wan-vae.safetensors
-          echo '65c3e25100b3886a66f16eca0e8f9062e997f33e47d929197b7212750d6f1b52  models/vace-q2.gguf' | sha256sum -c -
+          echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
           echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
           echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
           ls -lh models
@@ -59,7 +59,7 @@ jobs:
           CLI=$(find sd-cpp -type f -name 'sd-cli*' | head -n1)
           /usr/bin/time -v "$CLI" \
             -M vid_gen \
-            --diffusion-model models/vace-q2.gguf \
+            --diffusion-model models/vace-fp16.safetensors \
             --vae models/wan-vae.safetensors \
             --t5xxl models/umt5-q3ks.gguf \
             -i source.png \
@@ -72,7 +72,9 @@ jobs:
             --video-frames 5 \
             --fps 4 \
             --offload-to-cpu \
+            --mmap \
             --vae-tiling \
+            -t 4 \
             -W 256 -H 256 \
             -o vace-smoke.avi \
             -v 2>&1 | tee vace-smoke.log
@@ -83,7 +85,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: vace-generative-smoke
+          name: vace-generative-smoke-fp16
           path: |
             vace-smoke.avi
             vace-smoke.log
