@@ -29,23 +29,23 @@ jobs:
           cd sd-src
           git checkout de298c225bed97c3f9026b73cd7b71e7879bd41b
           git submodule update --init --recursive ggml
-          HASH=$(cat ggml/scripts/sync-llama.last)
-          echo "$HASH" | tee ../llama-compatible-commit.txt
+          git -C ggml rev-parse HEAD | tee ../client-ggml-commit.txt
           cmake -S . -B build-rpc -G Ninja -DSD_RPC=ON -DSD_BUILD_EXAMPLES=ON -DSD_WEBP=OFF -DSD_WEBM=OFF -DSD_BUILD_SHARED_LIBS=OFF
           cmake --build build-rpc --target sd-cli -j "$(nproc)"
           CLIENT=$(find build-rpc -type f -name 'sd-cli' | head -n1)
           test -n "$CLIENT"
           echo "$PWD/$CLIENT" | tee ../rpc-client-path.txt
 
-      - name: Build compatible RPC server
+      - name: Build current-generation RPC server
         shell: bash
         run: |
           set -euxo pipefail
-          HASH=$(cat llama-compatible-commit.txt)
+          SERVER_SHA=8e7f22b67ef4667b4ddd50230771287f328cfb3f
+          echo "$SERVER_SHA" | tee llama-server-commit.txt
           mkdir llama-src && cd llama-src
           git init -q
           git remote add origin https://github.com/ggml-org/llama.cpp.git
-          git fetch --depth 1 origin "$HASH"
+          git fetch --depth 1 origin "$SERVER_SHA"
           git checkout -q FETCH_HEAD
           cmake -S . -B build -G Ninja -DGGML_RPC=ON -DGGML_BUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF -DCMAKE_C_FLAGS=-DGGML_MAX_NAME=128 -DCMAKE_CXX_FLAGS=-DGGML_MAX_NAME=128
           cmake --build build --target ggml-rpc-server -j "$(nproc)"
@@ -107,7 +107,7 @@ jobs:
           echo "RPC_VACE_EXIT=$RC" | tee rpc-connect-report.txt
           test "$RC" -eq 0
           test -s rpc-vace-smoke.avi
-          grep -Eqi 'RPC|127\.0\.0\.1:50052' rpc-client.log
+          grep -Eqi 'Initializing backend: RPC|RPC0|127\.0\.0\.1:50052' rpc-client.log
           grep -Eqi 'Accepted client connection|alloc|buffer|tensor|graph' rpc-server.log
           printf 'RPC_SERVER_PORT=OPEN\nRPC_REGISTRY_RESOLVE=PASS\nRPC_REAL_MODEL_OFFLOAD=PASS\nRPC_VACE_GENERATION=PASS\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' | tee -a rpc-connect-report.txt
 
@@ -118,7 +118,8 @@ jobs:
           path: |
             cpus.txt
             memory.txt
-            llama-compatible-commit.txt
+            client-ggml-commit.txt
+            llama-server-commit.txt
             rpc-client-path.txt
             rpc-server-path.txt
             rpc-server.log
