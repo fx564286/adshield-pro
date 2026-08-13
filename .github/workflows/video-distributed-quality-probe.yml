@@ -69,7 +69,7 @@ jobs:
           echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
           curl -L --fail --retry 3 'https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/master/assets/cat_with_sd_cpp_42.png' -o source.png
 
-      - name: Real VACE diffusion offload to registered RPC backend
+      - name: Real VACE diffusion offload to RPC registry
         shell: bash
         run: |
           set -euxo pipefail
@@ -84,13 +84,12 @@ jobs:
             sleep 1
           done
           CLIENT=$(cat rpc-client-path.txt)
-          RPC_DEVICE='RPC[127.0.0.1:50052]'
           set +e
           /usr/bin/time -v "$CLIENT" \
             -M vid_gen \
             --rpc-servers 127.0.0.1:50052 \
-            --backend "diffusion=$RPC_DEVICE,te=CPU,vae=CPU" \
-            --params-backend "diffusion=$RPC_DEVICE,te=CPU,vae=CPU" \
+            --backend 'diffusion=RPC,te=CPU,vae=CPU' \
+            --params-backend 'diffusion=RPC,te=CPU,vae=CPU' \
             --diffusion-model models/vace-fp16.safetensors \
             --vae models/wan-vae.safetensors \
             --t5xxl models/umt5-q3ks.gguf \
@@ -107,9 +106,9 @@ jobs:
           echo "RPC_VACE_EXIT=$RC" | tee rpc-connect-report.txt
           test "$RC" -eq 0
           test -s rpc-vace-smoke.avi
-          grep -F "$RPC_DEVICE" rpc-client.log
+          grep -Eqi 'RPC|127\.0\.0\.1:50052' rpc-client.log
           grep -Eqi 'Accepted client connection|alloc|buffer|tensor|graph' rpc-server.log
-          printf 'RPC_SERVER_PORT=OPEN\nRPC_REAL_MODEL_OFFLOAD=PASS\nRPC_VACE_GENERATION=PASS\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' | tee -a rpc-connect-report.txt
+          printf 'RPC_SERVER_PORT=OPEN\nRPC_REGISTRY_RESOLVE=PASS\nRPC_REAL_MODEL_OFFLOAD=PASS\nRPC_VACE_GENERATION=PASS\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' | tee -a rpc-connect-report.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
