@@ -1,0 +1,127 @@
+name: video-wan22-bootstrap
+on:
+  push:
+    branches: [video-toolchain-probe]
+    paths:
+      - '.github/workflows/video-wan22-bootstrap.yml'
+      - 'video_toolchain/wan22/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+  WAN22_CACHE_KEY: wan22-ti2v-5b-q4km-umt5-q3ks-vae-v1
+
+jobs:
+  bootstrap-selftest:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[WAN22-BOOTSTRAP]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          nproc
+          free -h
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg jq
+
+      - name: Install Wan2.2-capable stable-diffusion.cpp runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
+          curl -L --fail --retry 4 "$URL" -o sd.zip
+          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
+          unzip -q sd.zip -d sd
+          chmod +x sd/sd-cli
+          sd/sd-cli --help > sd-help.txt 2>&1 || true
+          test -x sd/sd-cli
+
+      - name: Restore existing Wan/VACE shared model cache
+        id: base-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: ${{ env.BASE_CACHE_KEY }}
+
+      - name: Verify reusable UMT5 encoder
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "${{ steps.base-cache.outputs.cache-hit }}" = true
+          echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
+
+      - name: Restore persistent Wan2.2 cache
+        id: wan22-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: wan22_models
+          key: ${{ env.WAN22_CACHE_KEY }}
+
+      - name: Bootstrap Wan2.2 TI2V 5B model and VAE
+        if: steps.wan22-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p wan22_models
+          python3 -m pip install --quiet --break-system-packages 'huggingface_hub>=0.33,<1.0'
+          python3 - <<'PY'
+          from huggingface_hub import HfApi, hf_hub_download
+          from pathlib import Path
+          api=HfApi()
+          repo='QuantStack/Wan2.2-TI2V-5B-GGUF'
+          files=api.list_repo_files(repo_id=repo)
+          ggufs=[f for f in files if f.lower().endswith('.gguf')]
+          pref=[f for f in ggufs if 'q4_k_m' in f.lower()]
+          if not pref:
+              pref=[f for f in ggufs if 'q4' in f.lower()]
+          if not pref:
+              raise SystemExit(f'No Q4 GGUF found in {repo}: {ggufs}')
+          model=pref[0]
+          print('WAN22_MODEL_FILE='+model)
+          p=hf_hub_download(repo_id=repo, filename=model, local_dir='wan22_models')
+          Path('wan22_models/model-file.txt').write_text(model+'\n')
+
+          vae_repo='Comfy-Org/Wan_2.2_ComfyUI_Repackaged'
+          vae='split_files/vae/wan2.2_vae.safetensors'
+          hf_hub_download(repo_id=vae_repo, filename=vae, local_dir='wan22_models')
+          PY
+          find wan22_models -type f -maxdepth 5 -printf '%p %s bytes\n' | sort
+
+      - name: Save persistent Wan2.2 cache
+        if: steps.wan22-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: wan22_models
+          key: ${{ env.WAN22_CACHE_KEY }}
+
+      - name: Wan2.2 install selftest
+        shell: bash
+        run: |
+          set -euxo pipefail
+          MODEL_REL="$(cat wan22_models/model-file.txt)"
+          MODEL="wan22_models/$MODEL_REL"
+          VAE='wan22_models/split_files/vae/wan2.2_vae.safetensors'
+          test -s "$MODEL"
+          test -s "$VAE"
+          test -s models/umt5-q3ks.gguf
+          printf 'WAN22_BOOTSTRAP=PASS\nMODEL=%s\nVAE=%s\nT5=%s\nRUNTIME=%s\nEXECUTION_MODE=CPU_OFFLOAD_MMAP\n' \
+            "$MODEL_REL" "$VAE" 'models/umt5-q3ks.gguf' 'stable-diffusion.cpp de298c2' | tee wan22-selftest.txt
+          sha256sum "$MODEL" "$VAE" models/umt5-q3ks.gguf | tee wan22-sha256.txt
+
+      - name: Upload bootstrap manifest
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wan22-bootstrap-selftest
+          path: |
+            wan22-selftest.txt
+            wan22-sha256.txt
+            sd-help.txt
+            wan22_models/model-file.txt
+          if-no-files-found: ignore
+          retention-days: 7
