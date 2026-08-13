@@ -12,6 +12,7 @@ permissions:
 
 env:
   MODEL_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+  ENSEMBLE_REVISION: '2'
 
 jobs:
   candidate:
@@ -41,7 +42,6 @@ jobs:
           free -h
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
-
       - name: Download stable-diffusion.cpp runtime
         shell: bash
         run: |
@@ -51,14 +51,12 @@ jobs:
           echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
           unzip -q sd.zip -d sd
           chmod +x sd/sd-cli
-
       - name: Restore VACE model cache
         id: model-cache
         uses: actions/cache/restore@v4
         with:
           path: models
           key: ${{ env.MODEL_CACHE_KEY }}
-
       - name: Require verified cached models
         shell: bash
         run: |
@@ -67,7 +65,6 @@ jobs:
           echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
           echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
           echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
-
       - name: Prepare exact 9 distinct full-body control frames
         shell: bash
         run: |
@@ -78,7 +75,6 @@ jobs:
           ffmpeg -y -v error -i dance.mp4 -vf 'select=eq(n\,0),scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' -frames:v 1 source.png
           test "$(find control -name 'frame_*.png' | wc -l)" -eq 9
           test "$(sha256sum control/frame_*.png | awk '{print $1}' | sort -u | wc -l)" -eq 9
-
       - name: Real VACE candidate inference
         shell: bash
         run: |
@@ -111,7 +107,6 @@ jobs:
           ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json candidate-${{ matrix.worker }}.avi | tee candidate-${{ matrix.worker }}-ffprobe.json
           ffmpeg -y -v error -i candidate-${{ matrix.worker }}.avi -vf 'scale=216:384,tile=9x1' -frames:v 1 candidate-${{ matrix.worker }}-contact.png
           printf 'REAL_VACE_CANDIDATE=PASS\nWORKER=${{ matrix.worker }}\nSEED=${{ matrix.seed }}\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' > candidate-${{ matrix.worker }}-report.txt
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
