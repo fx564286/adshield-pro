@@ -1,20 +1,21 @@
-name: video-vace-quality-gate
+name: video-vace-quality-gate-14b
 on:
   push:
     branches: [video-toolchain-probe]
     paths:
       - '.github/workflows/video-vace-quality-gate.yml'
-      - 'video_toolchain/distributed/quality_gate_revision.txt'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  MODEL_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+  AUX_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+  VACE14_URL: https://huggingface.co/QuantStack/Wan2.1_14B_VACE-GGUF/resolve/main/Wan2.1_14B_VACE-Q8_0.gguf?download=true
+  VACE14_SHA256: 3c5e7ff7718e65df4940a0dbf4dcd986e0f63f6e46ee2b397a7173f3461fb0f8
 
 jobs:
-  quality-gate:
+  quality-gate-14b:
     if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[QUALITY-GATE]') }}
     strategy:
       fail-fast: false
@@ -22,27 +23,31 @@ jobs:
       matrix:
         include:
           - worker: 0
-            seed: 43000
+            seed: 53000
           - worker: 1
-            seed: 43001
+            seed: 53001
           - worker: 2
-            seed: 43002
+            seed: 53002
           - worker: 3
-            seed: 43003
+            seed: 53003
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 360
     steps:
-      - name: Runtime
+      - name: Runtime and disk preparation
         shell: bash
         run: |
           set -euxo pipefail
           nproc
           free -h
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean
+          df -h /
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           python3 -m pip install --quiet --break-system-packages 'mediapipe==0.10.21' opencv-python-headless numpy
 
-      - name: Runtime + models
+      - name: Install stable-diffusion.cpp runtime
         shell: bash
         run: |
           set -euxo pipefail
@@ -52,36 +57,46 @@ jobs:
           unzip -q sd.zip -d sd
           chmod +x sd/sd-cli
 
-      - name: Restore VACE model cache
-        id: model-cache
+      - name: Restore VAE and text encoder cache
+        id: aux-cache
         uses: actions/cache/restore@v4
         with:
           path: models
-          key: ${{ env.MODEL_CACHE_KEY }}
+          key: ${{ env.AUX_CACHE_KEY }}
 
-      - name: Verify models
+      - name: Verify auxiliary models and remove 1.3B generator
         shell: bash
         run: |
           set -euxo pipefail
-          test "${{ steps.model-cache.outputs.cache-hit }}" = true
-          echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
+          test "${{ steps.aux-cache.outputs.cache-hit }}" = true
           echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
           echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
+          rm -f models/vace-fp16.safetensors
+          df -h /
 
-      - name: Build 9-frame high-resolution single-person pose gate
+      - name: Download Wan2.1 VACE 14B Q8 generator
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 5 --retry-delay 5 "$VACE14_URL" -o models/Wan2.1_14B_VACE-Q8_0.gguf
+          echo "$VACE14_SHA256  models/Wan2.1_14B_VACE-Q8_0.gguf" | sha256sum -c -
+          ls -lh models/Wan2.1_14B_VACE-Q8_0.gguf
+          df -h /
+
+      - name: Build 9-frame full-body pose-control gate
         shell: bash
         run: |
           set -euxo pipefail
           curl -L --fail --retry 4 'https://commons.wikimedia.org/wiki/Special:Redirect/file/A%20woman%20on%20dancing%20floor.webm' -o source.webm
           mkdir -p rgb gate_control
-          ffmpeg -y -v error -ss 5 -i source.webm -vf 'fps=4,scale=384:672:force_original_aspect_ratio=decrease,pad=384:672:(ow-iw)/2:(oh-ih)/2:black' -frames:v 9 rgb/frame_%04d.png
+          ffmpeg -y -v error -ss 5 -i source.webm -vf 'fps=4,scale=480:832:force_original_aspect_ratio=decrease,pad=480:832:(ow-iw)/2:(oh-ih)/2:black' -frames:v 9 rgb/frame_%04d.png
           cat > pose.py <<'PY'
           import cv2, glob, numpy as np, mediapipe as mp
           Pose=mp.solutions.pose.Pose; CONN=list(mp.solutions.pose.POSE_CONNECTIONS)
           fs=sorted(glob.glob('rgb/frame_*.png')); seq=[]
           with Pose(static_image_mode=True, model_complexity=2, enable_segmentation=False, min_detection_confidence=.40) as p:
             for path in fs:
-              im=cv2.imread(path); h,w=im.shape[:2]; x0=int(w*.10); x1=int(w*.90); crop=im[:,x0:x1]
+              im=cv2.imread(path); h,w=im.shape[:2]; x0=int(w*.08); x1=int(w*.92); crop=im[:,x0:x1]
               r=p.process(cv2.cvtColor(crop,cv2.COLOR_BGR2RGB)); arr=None
               if r.pose_landmarks:
                 pts=np.array([[x0+lm.x*(x1-x0),lm.y*h,lm.visibility] for lm in r.pose_landmarks.landmark],np.float32)
@@ -97,48 +112,48 @@ jobs:
             elif lo is not None: seq[i]=seq[lo].copy()
             else: seq[i]=seq[hi].copy()
           for i,pts in enumerate(seq,1):
-            c=np.zeros((672,384,3),np.uint8)
+            c=np.zeros((832,480,3),np.uint8)
             for a,b in CONN:
               xa,ya,va=pts[a]; xb,yb,vb=pts[b]
-              if min(va,vb)>=.10: cv2.line(c,(int(xa),int(ya)),(int(xb),int(yb)),(255,255,255),4,cv2.LINE_AA)
+              if min(va,vb)>=.10: cv2.line(c,(int(xa),int(ya)),(int(xb),int(yb)),(255,255,255),5,cv2.LINE_AA)
             for x,y,v in pts:
-              if v>=.10: cv2.circle(c,(int(x),int(y)),5,(255,255,255),-1,cv2.LINE_AA)
+              if v>=.10: cv2.circle(c,(int(x),int(y)),6,(255,255,255),-1,cv2.LINE_AA)
             cv2.imwrite(f'gate_control/frame_{i:04d}.png',c)
           PY
           python3 pose.py
           test "$(find gate_control -name 'frame_*.png' | wc -l)" -eq 9
           cp rgb/frame_0001.png source.png
-          ffmpeg -y -v error -framerate 4 -i gate_control/frame_%04d.png -vf 'scale=192:336,tile=3x3' -frames:v 1 control-contact.png
+          ffmpeg -y -v error -framerate 4 -i gate_control/frame_%04d.png -vf 'scale=240:416,tile=3x3' -frames:v 1 control-contact.png
 
-      - name: Actual higher-quality VACE anatomy gate
+      - name: Actual Wan2.1 VACE 14B Q8 anatomy gate
         shell: bash
         run: |
           set -euxo pipefail
           /usr/bin/time -v sd/sd-cli \
             -M vid_gen \
-            --diffusion-model models/vace-fp16.safetensors \
+            --diffusion-model models/Wan2.1_14B_VACE-Q8_0.gguf \
             --vae models/wan-vae.safetensors \
             --t5xxl models/umt5-q3ks.gguf \
             -i source.png \
             --control-video gate_control \
-            -p 'photorealistic adult woman performing a natural energetic full body dance in a clean modern studio, stable realistic identity, consistent facial structure, anatomically correct shoulders elbows wrists hands hips knees ankles, exactly two arms and two legs, full body continuously visible, consistent fitted dance clothing, realistic skin texture, cinematic natural lighting, strong articulated movement' \
-            -n 'crowd, background people, child, static pose, deformed face, changing face, asymmetric eyes, duplicate limbs, extra arms, extra legs, fused limbs, missing hands, broken wrists, twisted elbows, malformed knees, extra fingers, melted body, ghosting, motion smear, low detail, blurry' \
-            --cfg-scale 5.0 --sampling-method euler --steps 12 --flow-shift 3.0 \
+            -p 'photorealistic adult woman performing an energetic natural full body dance in a clean modern studio, stable realistic identity and face across every frame, anatomically correct shoulders elbows wrists hands hips knees ankles, exactly two arms and two legs, five fingers per hand, full body continuously visible head to feet, consistent fitted dance clothing, realistic skin texture, physically coherent motion, cinematic natural lighting, high detail' \
+            -n 'crowd, background people, child, static pose, deformed face, changing face, asymmetric eyes, duplicate limbs, extra arms, extra legs, fused limbs, missing hands, broken wrists, twisted elbows, malformed knees, extra fingers, missing fingers, melted body, ghosting, motion smear, low detail, blurry, cropped feet, cropped head' \
+            --cfg-scale 6.0 --sampling-method euler --steps 20 --flow-shift 3.0 \
             --video-frames 9 --fps 4 --seed ${{ matrix.seed }} \
-            --offload-to-cpu --mmap --vae-tiling --diffusion-fa -t 4 -W 384 -H 672 \
-            -o quality-gate-${{ matrix.worker }}.avi -v 2>&1 | tee quality-gate-${{ matrix.worker }}.log
-          test -s quality-gate-${{ matrix.worker }}.avi
-          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json quality-gate-${{ matrix.worker }}.avi > ffprobe-${{ matrix.worker }}.json
-          ffmpeg -y -v error -i quality-gate-${{ matrix.worker }}.avi -vf 'scale=192:336,tile=3x3' -frames:v 1 result-contact-${{ matrix.worker }}.png
-          printf 'QUALITY_GATE_GENERATIVE=PASS\nSEED=${{ matrix.seed }}\nRESOLUTION=384x672\nSTEPS=12\nNATIVE_FRAMES=9\nMANUAL_VISUAL_GATE_REQUIRED=YES\n' > report-${{ matrix.worker }}.txt
+            --offload-to-cpu --mmap --vae-tiling --diffusion-fa -t 4 -W 480 -H 832 \
+            -o quality-gate-14b-${{ matrix.worker }}.avi -v 2>&1 | tee quality-gate-14b-${{ matrix.worker }}.log
+          test -s quality-gate-14b-${{ matrix.worker }}.avi
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json quality-gate-14b-${{ matrix.worker }}.avi > ffprobe-${{ matrix.worker }}.json
+          ffmpeg -y -v error -i quality-gate-14b-${{ matrix.worker }}.avi -vf 'scale=240:416,tile=3x3' -frames:v 1 result-contact-${{ matrix.worker }}.png
+          printf 'QUALITY_GATE_GENERATIVE=PASS\nMODEL=Wan2.1-VACE-14B-Q8_0\nBASE_MODEL_PARAMETERS=14B-class\nSEED=${{ matrix.seed }}\nRESOLUTION=480x832\nSTEPS=20\nNATIVE_FRAMES=9\nMANUAL_VISUAL_GATE_REQUIRED=YES\n' > report-${{ matrix.worker }}.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: quality-gate-${{ matrix.worker }}-seed-${{ matrix.seed }}
+          name: quality-gate-14b-${{ matrix.worker }}-seed-${{ matrix.seed }}
           path: |
-            quality-gate-${{ matrix.worker }}.avi
-            quality-gate-${{ matrix.worker }}.log
+            quality-gate-14b-${{ matrix.worker }}.avi
+            quality-gate-14b-${{ matrix.worker }}.log
             ffprobe-${{ matrix.worker }}.json
             result-contact-${{ matrix.worker }}.png
             control-contact.png
