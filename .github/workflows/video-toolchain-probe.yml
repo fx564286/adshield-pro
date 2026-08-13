@@ -1,15 +1,24 @@
-name: video-toolchain-probe
+name: video-toolchain-vace-smoke
 on:
   push:
     branches: [video-toolchain-probe]
   workflow_dispatch:
 
 jobs:
-  probe:
+  vace-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 120
     steps:
-      - name: Download stable-diffusion.cpp CPU release
+      - name: Runtime resources
+        shell: bash
+        run: |
+          set -euxo pipefail
+          uname -a
+          nproc
+          free -h
+          df -h .
+
+      - name: Download stable-diffusion.cpp CPU runtime
         shell: bash
         run: |
           set -euxo pipefail
@@ -17,33 +26,69 @@ jobs:
           curl -L --fail --retry 3 "$URL" -o sd-cpp.zip
           echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd-cpp.zip' | sha256sum -c -
           unzip -q sd-cpp.zip -d sd-cpp
-          find sd-cpp -maxdepth 3 -type f -print | sort
-      - name: Probe sd-cli and Wan/VACE support
+          CLI=$(find sd-cpp -type f -name 'sd-cli*' | head -n1)
+          chmod +x "$CLI"
+          "$CLI" -h | grep -E 'vid_gen|video-frames|control-video|offload-to-cpu'
+
+      - name: Download minimum VACE model set
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p models
+          curl -L --fail --retry 4 'https://huggingface.co/calcuis/wan-1.3b-gguf/resolve/main/wan2.1-vace-1.3b-q2_k.gguf?download=true' -o models/vace-q2.gguf
+          curl -L --fail --retry 4 'https://huggingface.co/city96/umt5-xxl-encoder-gguf/resolve/main/umt5-xxl-encoder-Q3_K_S.gguf?download=true' -o models/umt5-q3ks.gguf
+          curl -L --fail --retry 4 'https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors?download=true' -o models/wan-vae.safetensors
+          echo '65c3e25100b3886a66f16eca0e8f9062e997f33e47d929197b7212750d6f1b52  models/vace-q2.gguf' | sha256sum -c -
+          echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
+          echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
+          ls -lh models
+          free -h
+          df -h .
+
+      - name: Download smoke input
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/master/assets/cat_with_sd_cpp_42.png' -o source.png
+          file source.png
+
+      - name: Actual VACE generative smoke inference
         shell: bash
         run: |
           set -euxo pipefail
           CLI=$(find sd-cpp -type f -name 'sd-cli*' | head -n1)
-          chmod +x "$CLI"
-          "$CLI" -h > sd-cli-help.txt 2>&1 || true
-          cat sd-cli-help.txt
-          grep -E 'vid_gen|video-frames|control-video|offload-to-cpu' sd-cli-help.txt > vace-capabilities.txt
-          test -s vace-capabilities.txt
-          printf 'SD_CPP_CPU_RUNTIME=PASS\nWAN_VACE_CLI_CAPABILITIES=PASS\nEXTERNAL_MCP_INFERENCE=NO\n' > probe-report.txt
-      - name: Package runtime
-        shell: bash
-        run: |
-          set -euxo pipefail
-          tar -C sd-cpp -czf sd-cpp-linux-cpu.tar.gz .
-          sha256sum sd-cpp-linux-cpu.tar.gz > sd-cpp-linux-cpu.tar.gz.sha256
-          cat probe-report.txt
-          cat vace-capabilities.txt
+          /usr/bin/time -v "$CLI" \
+            -M vid_gen \
+            --diffusion-model models/vace-q2.gguf \
+            --vae models/wan-vae.safetensors \
+            --t5xxl models/umt5-q3ks.gguf \
+            -i source.png \
+            -p 'a subject dancing with clear articulated body motion, cinematic natural movement' \
+            -n 'static, deformed, duplicate limbs, blurry' \
+            --cfg-scale 1.0 \
+            --sampling-method euler \
+            --steps 1 \
+            --flow-shift 3.0 \
+            --video-frames 5 \
+            --fps 4 \
+            --offload-to-cpu \
+            --vae-tiling \
+            -W 256 -H 256 \
+            -o vace-smoke.avi \
+            -v 2>&1 | tee vace-smoke.log
+          test -s vace-smoke.avi
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration -of json vace-smoke.avi | tee vace-smoke-ffprobe.json
+          printf 'REAL_VACE_GENERATIVE_INFERENCE=PASS\nEXTERNAL_MCP_INFERENCE=NO\n' > vace-smoke-report.txt
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: sd-cpp-linux-cpu-runtime
+          name: vace-generative-smoke
           path: |
-            sd-cpp-linux-cpu.tar.gz
-            sd-cpp-linux-cpu.tar.gz.sha256
-            probe-report.txt
-            vace-capabilities.txt
+            vace-smoke.avi
+            vace-smoke.log
+            vace-smoke-ffprobe.json
+            vace-smoke-report.txt
+          if-no-files-found: ignore
           retention-days: 1
           compression-level: 0
