@@ -1,0 +1,81 @@
+name: video-long-motion-control
+on:
+  push:
+    branches: [video-toolchain-probe]
+    paths:
+      - '.github/workflows/video-long-motion-control.yml'
+      - 'video_toolchain/motion_sources.json'
+  workflow_dispatch:
+
+jobs:
+  build-control:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[CONTROL]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install media tools
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
+      - name: Download licensed 39.563s real-human dance source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL='https://commons.wikimedia.org/wiki/Special:Redirect/file/A%20woman%20on%20dancing%20floor.webm'
+          curl -L --fail --retry 4 "$URL" -o motion-source.webm
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,nb_frames -show_entries format=duration,size -of json motion-source.webm | tee source-ffprobe.json
+
+      - name: Extract non-looped 10s native motion controls
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p control10 clipA clipB
+          # 41 distinct temporal samples spanning t=5.000 through t=15.000 inclusive at 4 Hz.
+          ffmpeg -y -v error -ss 5 -i motion-source.webm \
+            -vf 'fps=4,scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' \
+            -frames:v 41 control10/frame_%04d.png
+          test "$(find control10 -name 'frame_*.png' | wc -l)" -eq 41
+          test "$(sha256sum control10/frame_*.png | awk '{print $1}' | sort -u | wc -l)" -eq 41
+          for n in $(seq -w 1 21); do cp "control10/frame_00${n}.png" "clipA/frame_00${n}.png"; done
+          # clip B overlaps the 21st frame and continues through frame 41.
+          i=1
+          for src in $(seq 21 41); do
+            printf -v s '%04d' "$src"
+            printf -v d '%04d' "$i"
+            cp "control10/frame_${s}.png" "clipB/frame_${d}.png"
+            i=$((i+1))
+          done
+          test "$(find clipA -name 'frame_*.png' | wc -l)" -eq 21
+          test "$(find clipB -name 'frame_*.png' | wc -l)" -eq 21
+          sha256sum control10/frame_*.png > control10-sha256.txt
+          sha256sum clipA/frame_*.png > clipA-sha256.txt
+          sha256sum clipB/frame_*.png > clipB-sha256.txt
+          cmp clipA/frame_0021.png clipB/frame_0001.png
+          printf 'CONTROL_REAL_HUMAN=PASS\nCONTROL_LOOPED=NO\nCONTROL_TOTAL_KEYFRAMES=41\nCLIP_A_KEYFRAMES=21\nCLIP_B_KEYFRAMES=21\nOVERLAP_KEYFRAMES=1\nTEMPORAL_SPAN_SECONDS=10.000\n' > control-report.txt
+
+      - name: Build visual contact sheets
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ffmpeg -y -v error -framerate 4 -i control10/frame_%04d.png -vf 'scale=144:256,tile=7x6' -frames:v 1 control10-contact.png
+          ffmpeg -y -v error -framerate 4 -i clipA/frame_%04d.png -vf 'scale=144:256,tile=7x3' -frames:v 1 clipA-contact.png
+          ffmpeg -y -v error -framerate 4 -i clipB/frame_%04d.png -vf 'scale=144:256,tile=7x3' -frames:v 1 clipB-contact.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-human-10s-motion-control
+          path: |
+            source-ffprobe.json
+            control-report.txt
+            control10-sha256.txt
+            clipA-sha256.txt
+            clipB-sha256.txt
+            control10-contact.png
+            clipA-contact.png
+            clipB-contact.png
+            clipA/
+            clipB/
+          retention-days: 3
+          compression-level: 0
