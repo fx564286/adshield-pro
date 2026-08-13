@@ -1,0 +1,127 @@
+name: video-vace-ensemble
+on:
+  push:
+    branches: [video-toolchain-probe]
+    paths:
+      - '.github/workflows/video-vace-ensemble.yml'
+      - 'video_toolchain/distributed/render_manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MODEL_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+
+jobs:
+  candidate:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ENSEMBLE]') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - worker: 0
+            seed: 42000
+          - worker: 1
+            seed: 42001
+          - worker: 2
+            seed: 42002
+          - worker: 3
+            seed: 42003
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Runtime + ffmpeg
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "WORKER=${{ matrix.worker }} SEED=${{ matrix.seed }}"
+          nproc
+          free -h
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+
+      - name: Download stable-diffusion.cpp runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
+          curl -L --fail --retry 3 "$URL" -o sd.zip
+          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
+          unzip -q sd.zip -d sd
+          chmod +x sd/sd-cli
+
+      - name: Restore VACE model cache
+        id: model-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: ${{ env.MODEL_CACHE_KEY }}
+
+      - name: Require verified cached models
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "${{ steps.model-cache.outputs.cache-hit }}" = true
+          echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
+          echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
+          echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
+
+      - name: Prepare exact 9 distinct full-body control frames
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -L --fail --retry 3 'https://raw.githubusercontent.com/leejet/stable-diffusion.cpp/de298c225bed97c3f9026b73cd7b71e7879bd41b/assets/wan/Wan2.1_1.3B_vace_v2v.mp4' -o dance.mp4
+          mkdir -p control
+          ffmpeg -y -v error -i dance.mp4 -vf "select='not(mod(n,4))',scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black" -vsync 0 -frames:v 9 control/frame_%04d.png
+          ffmpeg -y -v error -i dance.mp4 -vf 'select=eq(n\,0),scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' -frames:v 1 source.png
+          test "$(find control -name 'frame_*.png' | wc -l)" -eq 9
+          test "$(sha256sum control/frame_*.png | awk '{print $1}' | sort -u | wc -l)" -eq 9
+
+      - name: Real VACE candidate inference
+        shell: bash
+        run: |
+          set -euxo pipefail
+          /usr/bin/time -v sd/sd-cli \
+            -M vid_gen \
+            --diffusion-model models/vace-fp16.safetensors \
+            --vae models/wan-vae.safetensors \
+            --t5xxl models/umt5-q3ks.gguf \
+            -i source.png \
+            --control-video control \
+            -p 'a young adult woman performing a natural energetic idol dance in a studio, coherent realistic full body, stable realistic face, anatomically correct arms legs and hands, consistent clothing, natural articulated movement' \
+            -n 'static, deformed, duplicate limbs, extra arms, extra legs, extra fingers, broken hands, distorted face, ghosting, blurry, melting body, fused limbs' \
+            --cfg-scale 6.0 \
+            --sampling-method euler \
+            --steps 6 \
+            --flow-shift 3.0 \
+            --video-frames 9 \
+            --fps 4 \
+            --seed ${{ matrix.seed }} \
+            --offload-to-cpu \
+            --mmap \
+            --vae-tiling \
+            --diffusion-fa \
+            -t 4 \
+            -W 288 -H 512 \
+            -o candidate-${{ matrix.worker }}.avi \
+            -v 2>&1 | tee candidate-${{ matrix.worker }}.log
+          test -s candidate-${{ matrix.worker }}.avi
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json candidate-${{ matrix.worker }}.avi | tee candidate-${{ matrix.worker }}-ffprobe.json
+          ffmpeg -y -v error -i candidate-${{ matrix.worker }}.avi -vf 'scale=216:384,tile=9x1' -frames:v 1 candidate-${{ matrix.worker }}-contact.png
+          printf 'REAL_VACE_CANDIDATE=PASS\nWORKER=${{ matrix.worker }}\nSEED=${{ matrix.seed }}\nCHATGPT_PER_FRAME_INFERENCE=NO\nEXTERNAL_MCP_INFERENCE=NO\n' > candidate-${{ matrix.worker }}-report.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vace-candidate-${{ matrix.worker }}-seed-${{ matrix.seed }}
+          path: |
+            candidate-${{ matrix.worker }}.avi
+            candidate-${{ matrix.worker }}.log
+            candidate-${{ matrix.worker }}-ffprobe.json
+            candidate-${{ matrix.worker }}-contact.png
+            candidate-${{ matrix.worker }}-report.txt
+          if-no-files-found: ignore
+          retention-days: 2
+          compression-level: 0
