@@ -1,0 +1,195 @@
+name: video-vace-longform-60s
+
+on:
+  push:
+    branches: [video-toolchain-probe]
+    paths:
+      - '.github/workflows/video-vace-longform-60s.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MODEL_CACHE_KEY: vace-1.3b-fp16-umt5-q3ks-vae-v1
+  CONTROL_URL: https://commons.wikimedia.org/wiki/Special:Redirect/file/Dance.ogv
+
+jobs:
+  render:
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[VACE-60S]') }}
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        seg: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          nproc
+          free -h
+
+      - name: Install stable-diffusion.cpp runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
+          curl -L --fail --retry 3 "$URL" -o sd.zip
+          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd.zip' | sha256sum -c -
+          unzip -q sd.zip -d sd
+          CLI=$(find sd -type f -name 'sd-cli*' | head -n1)
+          chmod +x "$CLI"
+          "$CLI" -h | grep -E 'vid_gen|control-video|video-frames|offload-to-cpu|mmap'
+
+      - name: Restore VACE model cache
+        id: model-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: models
+          key: ${{ env.MODEL_CACHE_KEY }}
+
+      - name: Verify model set
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test "${{ steps.model-cache.outputs.cache-hit }}" = true
+          echo '640ccc0577e6a5d4bb15cd91b11b699ef914fc55f126c5a1c544e152130784f2  models/vace-fp16.safetensors' | sha256sum -c -
+          echo 'f64f8d6dc4d8a24276df69d0ccea789aae686f7417950a41e6568c30cb478a5c  models/umt5-q3ks.gguf' | sha256sum -c -
+          echo '2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b  models/wan-vae.safetensors' | sha256sum -c -
+
+      - name: Prepare unique real dance control segment
+        shell: bash
+        run: |
+          set -euxo pipefail
+          IDX='${{ matrix.seg }}'
+          START=$(awk -v i="$IDX" 'BEGIN { printf "%.3f", i*2.25 }')
+          curl -L --fail --retry 4 "$CONTROL_URL" -o long-dance.ogv
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate -show_entries format=duration -of json long-dance.ogv | tee control-source-probe.json
+          mkdir -p control
+          ffmpeg -y -v error -ss "$START" -i long-dance.ogv \
+            -vf 'fps=4,scale=288:512:force_original_aspect_ratio=decrease,pad=288:512:(ow-iw)/2:(oh-ih)/2:black' \
+            -frames:v 9 control/frame_%04d.png
+          test "$(find control -name 'frame_*.png' | wc -l)" -eq 9
+          cp control/frame_0001.png source.png
+          test "$(sha256sum control/frame_*.png | awk '{print $1}' | sort -u | wc -l)" -ge 7
+          printf 'SEGMENT=%s\nSTART_SECONDS=%s\n' "$IDX" "$START" > segment-input.txt
+
+      - name: Generate native VACE motion segment
+        shell: bash
+        run: |
+          set -euxo pipefail
+          IDX='${{ matrix.seg }}'
+          CLI=$(find sd -type f -name 'sd-cli*' | head -n1)
+          SEED=$((46000 + IDX))
+          /usr/bin/time -v "$CLI" \
+            -M vid_gen \
+            --diffusion-model models/vace-fp16.safetensors \
+            --vae models/wan-vae.safetensors \
+            --t5xxl models/umt5-q3ks.gguf \
+            -i source.png \
+            --control-video control \
+            -p 'photorealistic adult dancer performing a natural continuous full body street dance, same person throughout the shot, coherent body, realistic face, anatomically correct arms hands hips knees and legs, consistent clothing, natural body motion, full body visible' \
+            -n 'static pose, frozen frame, duplicate person, extra arms, extra legs, missing limbs, broken hands, malformed face, melting body, ghosting, motion smear, severe blur' \
+            --cfg-scale 6.0 \
+            --sampling-method euler \
+            --steps 8 \
+            --flow-shift 3.0 \
+            --video-frames 9 \
+            --fps 4 \
+            --seed "$SEED" \
+            --offload-to-cpu \
+            --mmap \
+            --vae-tiling \
+            --diffusion-fa \
+            -t 4 \
+            -W 288 -H 512 \
+            -o "seg-${IDX}.avi" \
+            -v 2>&1 | tee "seg-${IDX}.log"
+          test -s "seg-${IDX}.avi"
+          ffmpeg -y -v error -i "seg-${IDX}.avi" -c:v libx264 -pix_fmt yuv420p -r 4 -movflags +faststart "seg-${IDX}.mp4"
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json "seg-${IDX}.mp4" > "seg-${IDX}-probe.json"
+          ffmpeg -y -v error -i "seg-${IDX}.mp4" -vf 'scale=144:256,tile=3x3' -frames:v 1 "seg-${IDX}-contact.png"
+          printf 'SEGMENT=%s\nSEED=%s\nNATIVE_GENERATIVE_FRAMES=9\nNATIVE_FPS=4\nREAL_CONTROL_MOTION=YES\n' "$IDX" "$SEED" > "seg-${IDX}-report.txt"
+
+      - name: Upload generated segment
+        uses: actions/upload-artifact@v4
+        with:
+          name: vace-long-seg-${{ matrix.seg }}
+          path: |
+            seg-${{ matrix.seg }}.mp4
+            seg-${{ matrix.seg }}-probe.json
+            seg-${{ matrix.seg }}-contact.png
+            seg-${{ matrix.seg }}-report.txt
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  assemble:
+    if: ${{ always() && needs.render.result == 'success' }}
+    needs: render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Install ffmpeg
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg jq
+
+      - name: Download all generated segments
+        uses: actions/download-artifact@v4
+        with:
+          pattern: vace-long-seg-*
+          path: segments
+          merge-multiple: true
+
+      - name: Assemble 60-second native-motion master and 30fps delivery
+        shell: bash
+        run: |
+          set -euxo pipefail
+          find segments -maxdepth 1 -name 'seg-*.mp4' | sort -V | awk '{print "file \047" $0 "\047"}' > concat.txt
+          test "$(wc -l < concat.txt)" -eq 27
+          ffmpeg -y -v error -f concat -safe 0 -i concat.txt -c copy all-native.mp4
+          ffmpeg -y -v error -i all-native.mp4 -t 60.000 -c:v libx264 -pix_fmt yuv420p -r 4 -movflags +faststart vace-60s-native-4fps.mp4
+          ffmpeg -y -v error -i vace-60s-native-4fps.mp4 -vf 'fps=30' -t 60.000 -c:v libx264 -pix_fmt yuv420p -movflags +faststart vace-60s-30fps.mp4
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,nb_frames -show_entries format=duration,size -of json vace-60s-native-4fps.mp4 | tee native-probe.json
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,avg_frame_rate,nb_frames -show_entries format=duration,size -of json vace-60s-30fps.mp4 | tee delivery-probe.json
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 vace-60s-native-4fps.mp4)" -eq 240
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=nb_frames -of csv=p=0 vace-60s-30fps.mp4)" -eq 1800
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 vace-60s-30fps.mp4)" = h264
+          ffmpeg -y -v error -i vace-60s-native-4fps.mp4 -vf 'fps=1/10,scale=216:384,tile=3x2' -frames:v 1 vace-60s-contact.png
+          cat > final-report.txt <<'EOF'
+VACE_LONGFORM_60S=PASS_IF_VISUAL_QA_PASSES
+DURATION_SECONDS=60.000
+NATIVE_GENERATIVE_FPS=4
+NATIVE_GENERATIVE_FRAMES=240
+DELIVERY_FPS=30
+DELIVERY_FRAMES=1800
+DELIVERY_CODEC=H264
+FRAME_RATE_CONVERSION=CADENCE_DUPLICATION_NO_OPTICAL_FLOW
+STATIC_FRAME_REPLICATION_AS_GENERATION=NO
+REAL_CONTROLLED_GENERATIVE_MOTION=YES
+MANUAL_VISUAL_QA_REQUIRED=YES
+EOF
+
+      - name: Upload 60-second deliverables
+        uses: actions/upload-artifact@v4
+        with:
+          name: vace-longform-60s-delivery
+          path: |
+            vace-60s-native-4fps.mp4
+            vace-60s-30fps.mp4
+            vace-60s-contact.png
+            native-probe.json
+            delivery-probe.json
+            final-report.txt
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 0
