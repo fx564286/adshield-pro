@@ -1,0 +1,49 @@
+name: video-toolchain-probe
+on:
+  push:
+    branches: [video-toolchain-probe]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download stable-diffusion.cpp CPU release
+        shell: bash
+        run: |
+          set -euxo pipefail
+          URL='https://github.com/leejet/stable-diffusion.cpp/releases/download/master-820-de298c2/sd-master-de298c2-bin-Linux-Ubuntu-24.04-x86_64.zip'
+          curl -L --fail --retry 3 "$URL" -o sd-cpp.zip
+          echo '7ecc39e2485ec871d127d004d2bac4c2640eea7d0235cb6b131a8006322e0ce3  sd-cpp.zip' | sha256sum -c -
+          unzip -q sd-cpp.zip -d sd-cpp
+          find sd-cpp -maxdepth 3 -type f -print | sort
+      - name: Probe sd-cli and Wan/VACE support
+        shell: bash
+        run: |
+          set -euxo pipefail
+          CLI=$(find sd-cpp -type f -name 'sd-cli*' | head -n1)
+          chmod +x "$CLI"
+          "$CLI" -h > sd-cli-help.txt 2>&1 || true
+          cat sd-cli-help.txt
+          grep -E 'vid_gen|video-frames|control-video|offload-to-cpu' sd-cli-help.txt > vace-capabilities.txt
+          test -s vace-capabilities.txt
+          printf 'SD_CPP_CPU_RUNTIME=PASS\nWAN_VACE_CLI_CAPABILITIES=PASS\nEXTERNAL_MCP_INFERENCE=NO\n' > probe-report.txt
+      - name: Package runtime
+        shell: bash
+        run: |
+          set -euxo pipefail
+          tar -C sd-cpp -czf sd-cpp-linux-cpu.tar.gz .
+          sha256sum sd-cpp-linux-cpu.tar.gz > sd-cpp-linux-cpu.tar.gz.sha256
+          cat probe-report.txt
+          cat vace-capabilities.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sd-cpp-linux-cpu-runtime
+          path: |
+            sd-cpp-linux-cpu.tar.gz
+            sd-cpp-linux-cpu.tar.gz.sha256
+            probe-report.txt
+            vace-capabilities.txt
+          retention-days: 1
+          compression-level: 0
