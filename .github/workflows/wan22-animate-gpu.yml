@@ -1,0 +1,63 @@
+name: Wan2.2 Animate 14B GPU Render
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [video-toolchain-probe]
+    paths:
+      - '.github/workflows/wan22-animate-gpu.yml'
+      - 'video_toolchain/**'
+
+jobs:
+  render:
+    runs-on: [self-hosted, linux, x64, gpu]
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify NVIDIA GPU
+        shell: bash
+        run: |
+          set -euxo pipefail
+          nvidia-smi
+          python3 - <<'PY'
+          import subprocess
+          subprocess.check_call(['nvidia-smi'])
+          PY
+      - name: Bootstrap Wan2.2 Animate 14B
+        shell: bash
+        run: |
+          set -euxo pipefail
+          chmod +x video_toolchain/bootstrap_wan22_animate.sh
+          video_toolchain/bootstrap_wan22_animate.sh
+      - name: Render real generative full-body dance
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd video_toolchain/Wan2.2
+          source ../wan22-venv/bin/activate
+          mkdir -p ../out
+          python generate.py \
+            --task animate-14B \
+            --ckpt_dir ../models/Wan2.2-Animate-14B \
+            --src_root ../inputs \
+            --refert_num 1 \
+            --replace_flag false \
+            --save_dir ../out
+          test -n "$(find ../out -type f \( -name '*.mp4' -o -name '*.avi' \) -print -quit)"
+      - name: Validate and normalize output
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SRC="$(find video_toolchain/out -type f \( -name '*.mp4' -o -name '*.avi' \) | head -n1)"
+          ffprobe -v error -show_streams -show_format "$SRC" > video_toolchain/out/ffprobe-source.txt
+          ffmpeg -y -i "$SRC" -t 10 -vf 'fps=60' -c:v libx264 -pix_fmt yuv420p -an video_toolchain/out/wan22-dance-10s-60fps.mp4
+          FRAMES="$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames -of default=nw=1:nk=1 video_toolchain/out/wan22-dance-10s-60fps.mp4)"
+          test "$FRAMES" = "600"
+          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,nb_frames -show_entries format=duration,size -of json video_toolchain/out/wan22-dance-10s-60fps.mp4 > video_toolchain/out/ffprobe-final.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wan22-animate-14b-video
+          path: video_toolchain/out/
+          if-no-files-found: warn
+          retention-days: 7
