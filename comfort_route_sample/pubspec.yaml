@@ -1,7 +1,7 @@
 name: comfort_route_sample
 description: Comfort-first route planning APK sample.
 publish_to: 'none'
-version: 0.6.0+7
+version: 0.6.1+8
 
 environment:
   sdk: '>=3.6.0 <4.0.0'
