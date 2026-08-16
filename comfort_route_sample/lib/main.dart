@@ -1,9 +1,61 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-void main() => runApp(const ComfortRouteSampleApp());
+void main() => runApp(const ComfortRouteApp());
 
 enum RouteMode { fast, comfort, weather, indoor, supply }
+
+class AppColors {
+  static const background = Color(0xFFF8F5F7);
+  static const surface = Color(0xFFFFFCFD);
+  static const surfaceStrong = Color(0xFFFFFFFF);
+  static const primary = Color(0xFFA86F88);
+  static const primaryDeep = Color(0xFF7C5064);
+  static const primarySoft = Color(0xFFF3E5EB);
+  static const text = Color(0xFF2E2930);
+  static const textMuted = Color(0xFF756D73);
+  static const shadow = Color(0x140F0810);
+  static const shade = Color(0xFF4F886A);
+  static const indoor = Color(0xFF756FA6);
+  static const water = Color(0xFF4D7FA5);
+  static const heat = Color(0xFFB67C49);
+  static const map = Color(0xFFF0ECEF);
+  static const road = Color(0xFFD8D0D5);
+  static const building = Color(0xFFE6DEE3);
+}
+
+class AppSpace {
+  static const xxs = 4.0;
+  static const xs = 8.0;
+  static const sm = 12.0;
+  static const md = 16.0;
+  static const lg = 20.0;
+  static const xl = 24.0;
+}
+
+class AppRadius {
+  static const control = 20.0;
+  static const card = 24.0;
+  static const sheet = 30.0;
+  static const map = 30.0;
+  static const pill = 999.0;
+}
+
+class AppMotion {
+  static const fast = Duration(milliseconds: 160);
+  static const standard = Duration(milliseconds: 240);
+  static const curve = Curves.easeOutCubic;
+}
+
+class AppShadows {
+  static const soft = [
+    BoxShadow(
+      color: AppColors.shadow,
+      blurRadius: 24,
+      offset: Offset(0, 8),
+    ),
+  ];
+}
 
 class RouteData {
   const RouteData({
@@ -33,13 +85,32 @@ class RouteData {
       case RouteMode.fast:
         return distanceKm * 55 + minutes * 4 - shade * .15 - indoor * .1;
       case RouteMode.comfort:
-        return distanceKm * 30 + minutes * 2.5 + heatExposure * 1.7 - shade * .7 - indoor * .65 - water * 5 - toilets * 3;
+        return distanceKm * 30 +
+            minutes * 2.5 +
+            heatExposure * 1.7 -
+            shade * .7 -
+            indoor * .65 -
+            water * 5 -
+            toilets * 3;
       case RouteMode.weather:
-        return distanceKm * 24 + heatExposure * 2.1 - shade * .95 - indoor * 1.15 - buildings * 4;
+        return distanceKm * 24 +
+            heatExposure * 2.1 -
+            shade * .95 -
+            indoor * 1.15 -
+            buildings * 4;
       case RouteMode.indoor:
-        return distanceKm * 27 + minutes * 1.8 - indoor * 1.45 - buildings * 8 - shade * .35;
+        return distanceKm * 27 +
+            minutes * 1.8 -
+            indoor * 1.45 -
+            buildings * 8 -
+            shade * .35;
       case RouteMode.supply:
-        return distanceKm * 29 + minutes * 2 - water * 16 - toilets * 11 - shade * .25 - indoor * .2;
+        return distanceKm * 29 +
+            minutes * 2 -
+            water * 16 -
+            toilets * 11 -
+            shade * .25 -
+            indoor * .2;
     }
   }
 }
@@ -80,39 +151,107 @@ const sampleRoutes = <RouteData>[
   ),
 ];
 
-class ComfortRouteSampleApp extends StatelessWidget {
-  const ComfortRouteSampleApp({super.key});
+class ComfortRouteApp extends StatelessWidget {
+  const ComfortRouteApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFFB8849C);
     final scheme = ColorScheme.fromSeed(
-      seedColor: seed,
+      seedColor: AppColors.primary,
       brightness: Brightness.light,
-      surface: const Color(0xFFFFFBFD),
+      surface: AppColors.surface,
+    ).copyWith(
+      primary: AppColors.primary,
+      onPrimary: Colors.white,
+      secondaryContainer: AppColors.primarySoft,
+      onSecondaryContainer: AppColors.primaryDeep,
     );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: '쾌적길',
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: scheme,
-        scaffoldBackgroundColor: const Color(0xFFF8F5F7),
+        scaffoldBackgroundColor: AppColors.background,
         fontFamilyFallback: const ['sans-serif'],
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(28),
-            borderSide: BorderSide.none,
+        textTheme: const TextTheme(
+          headlineSmall: TextStyle(
+            fontSize: 22,
+            height: 1.2,
+            fontWeight: FontWeight.w800,
+            color: AppColors.text,
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(28),
-            borderSide: BorderSide.none,
+          titleLarge: TextStyle(
+            fontSize: 18,
+            height: 1.25,
+            fontWeight: FontWeight.w800,
+            color: AppColors.text,
           ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(28),
-            borderSide: BorderSide.none,
+          titleMedium: TextStyle(
+            fontSize: 15,
+            height: 1.3,
+            fontWeight: FontWeight.w700,
+            color: AppColors.text,
+          ),
+          bodyMedium: TextStyle(
+            fontSize: 14,
+            height: 1.35,
+            color: AppColors.text,
+          ),
+          bodySmall: TextStyle(
+            fontSize: 12,
+            height: 1.35,
+            color: AppColors.textMuted,
+          ),
+          labelLarge: TextStyle(
+            fontSize: 13,
+            height: 1.2,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        navigationBarTheme: NavigationBarThemeData(
+          height: 66,
+          elevation: 0,
+          backgroundColor: AppColors.surface,
+          indicatorColor: AppColors.primarySoft,
+          labelTextStyle: WidgetStateProperty.resolveWith(
+            (states) => TextStyle(
+              fontSize: 11.5,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w800
+                  : FontWeight.w600,
+              color: states.contains(WidgetState.selected)
+                  ? AppColors.primaryDeep
+                  : AppColors.textMuted,
+            ),
+          ),
+          iconTheme: WidgetStateProperty.resolveWith(
+            (states) => IconThemeData(
+              size: 23,
+              color: states.contains(WidgetState.selected)
+                  ? AppColors.primaryDeep
+                  : AppColors.textMuted,
+            ),
+          ),
+        ),
+        bottomSheetTheme: const BottomSheetThemeData(
+          backgroundColor: AppColors.surface,
+          modalBackgroundColor: AppColors.surface,
+          surfaceTintColor: Colors.transparent,
+          showDragHandle: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppRadius.sheet),
+            ),
+          ),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: AppColors.text,
+          contentTextStyle: const TextStyle(color: Colors.white),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppRadius.control),
           ),
         ),
       ),
@@ -134,212 +273,124 @@ class _HomeScreenState extends State<HomeScreen> {
   int bottomIndex = 0;
 
   List<RouteData> get ranked {
-    final copy = sampleRoutes.toList();
-    copy.sort((a, b) => a.score(mode).compareTo(b.score(mode)));
+    final copy = sampleRoutes.toList()
+      ..sort((a, b) => a.score(mode).compareTo(b.score(mode)));
     return copy;
   }
 
   @override
   Widget build(BuildContext context) {
     final routes = ranked;
-    if (!routes.any((e) => e.name == selectedRoute)) {
-      selectedRoute = routes.first.name;
+    final recommended = routes.first;
+    final alternatives = routes.skip(1).toList();
+    if (!routes.any((route) => route.name == selectedRoute)) {
+      selectedRoute = recommended.name;
     }
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      readOnly: true,
-                      onTap: _showDestinationSheet,
-                      decoration: const InputDecoration(
-                        hintText: '어디로 갈까요?',
-                        prefixIcon: Icon(Icons.search_rounded),
-                        suffixIcon: Icon(Icons.tune_rounded),
-                        contentPadding: EdgeInsets.symmetric(vertical: 15),
-                      ),
-                    ),
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compactHeight = constraints.maxHeight < 700;
+            final panelHeight = compactHeight ? 224.0 : 250.0;
+
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpace.md,
+                    AppSpace.sm,
+                    AppSpace.md,
+                    AppSpace.xs,
                   ),
-                  const SizedBox(width: 10),
-                  _roundButton(Icons.my_location_rounded, () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('샘플에서는 현재 위치를 부천 중심으로 표시합니다.')),
-                    );
-                  }),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 50,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                children: RouteMode.values.map((item) {
-                  final selected = item == mode;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: ChoiceChip(
-                      selected: selected,
-                      showCheckmark: false,
-                      side: BorderSide.none,
-                      avatar: Icon(_modeIcon(item), size: 17),
-                      label: Text(_modeLabel(item)),
-                      onSelected: (_) => setState(() {
-                        mode = item;
-                        selectedRoute = ranked.first.name;
-                      }),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: Stack(
-                    fit: StackFit.expand,
+                  child: Row(
                     children: [
-                      CustomPaint(
-                        painter: ComfortMapPainter(
-                          selectedRoute: selectedRoute,
-                          mode: mode,
-                        ),
+                      Expanded(
+                        child: AppSearchBar(onTap: _showDestinationSheet),
                       ),
-                      Positioned(
-                        left: 12,
-                        top: 12,
-                        child: _glassPill(
-                          icon: Icons.thermostat_rounded,
-                          text: '샘플 31°C · 체감 더움',
-                        ),
-                      ),
-                      Positioned(
-                        right: 12,
-                        top: 12,
-                        child: _glassPill(
-                          icon: Icons.science_outlined,
-                          text: '샘플 데이터',
-                        ),
-                      ),
-                      Positioned(
-                        left: 12,
-                        bottom: 12,
-                        right: 12,
-                        child: _mapSummary(routes.first),
+                      const SizedBox(width: AppSpace.xs),
+                      AppCircleButton(
+                        icon: Icons.my_location_rounded,
+                        onTap: _showLocationNotice,
                       ),
                     ],
                   ),
                 ),
-              ),
-            ),
-            SizedBox(
-              height: 185,
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                scrollDirection: Axis.horizontal,
-                itemCount: routes.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (_, index) {
-                  final route = routes[index];
-                  return _routeCard(route, index == 0);
-                },
-              ),
-            ),
-            NavigationBar(
-              selectedIndex: bottomIndex,
-              height: 66,
-              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-              onDestinationSelected: (value) => setState(() => bottomIndex = value),
-              destinations: const [
-                NavigationDestination(icon: Icon(Icons.map_rounded), label: '지도'),
-                NavigationDestination(icon: Icon(Icons.alt_route_rounded), label: '경로'),
-                NavigationDestination(icon: Icon(Icons.bookmark_outline_rounded), label: '저장'),
-                NavigationDestination(icon: Icon(Icons.settings_outlined), label: '설정'),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _routeCard(RouteData route, bool recommended) {
-    final active = selectedRoute == route.name;
-    return GestureDetector(
-      onTap: () => setState(() => selectedRoute = route.name),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        width: 272,
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(
-          color: active ? const Color(0xFFFFF7FB) : Colors.white,
-          borderRadius: BorderRadius.circular(26),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x12000000),
-              blurRadius: 18,
-              offset: Offset(0, 7),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    route.name,
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                ),
-                if (recommended)
-                  const Icon(Icons.auto_awesome_rounded, size: 18, color: Color(0xFFAD718B)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분',
-              style: TextStyle(color: Colors.grey.shade700, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _metric('실내 ${route.indoor}%'),
-                _metric('그늘 ${route.shade}%'),
-                _metric('물 ${route.water}'),
-                _metric('화장실 ${route.toilets}'),
-                _metric('건물 ${route.buildings}'),
-              ],
-            ),
-            const Spacer(),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    active ? '지도에 표시 중' : '눌러서 비교',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: () {
-                    setState(() => selectedRoute = route.name);
-                    _showStartSheet(route);
+                AppModeBar(
+                  selected: mode,
+                  onChanged: (value) {
+                    setState(() {
+                      mode = value;
+                      final sorted = ranked;
+                      selectedRoute = sorted.first.name;
+                    });
                   },
-                  icon: const Icon(Icons.navigation_rounded, size: 17),
-                  label: const Text('선택'),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpace.sm,
+                      AppSpace.xs,
+                      AppSpace.sm,
+                      AppSpace.xs,
+                    ),
+                    child: AppMapCard(
+                      mode: mode,
+                      selectedRoute: selectedRoute,
+                      recommended: recommended,
+                      onSummaryTap: () => _showRouteDetails(recommended),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  height: panelHeight,
+                  child: RoutePanel(
+                    recommended: recommended,
+                    alternatives: alternatives,
+                    selectedRoute: selectedRoute,
+                    compact: compactHeight,
+                    onSelect: (route) {
+                      setState(() => selectedRoute = route.name);
+                    },
+                    onStart: _showStartSheet,
+                  ),
                 ),
               ],
+            );
+          },
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: NavigationBar(
+          selectedIndex: bottomIndex,
+          onDestinationSelected: (value) {
+            setState(() => bottomIndex = value);
+            if (value != 0) {
+              _showSectionPreview(value);
+            }
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.map_outlined),
+              selectedIcon: Icon(Icons.map_rounded),
+              label: '지도',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.alt_route_outlined),
+              selectedIcon: Icon(Icons.alt_route_rounded),
+              label: '경로',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.bookmark_border_rounded),
+              selectedIcon: Icon(Icons.bookmark_rounded),
+              label: '저장',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings_rounded),
+              label: '설정',
             ),
           ],
         ),
@@ -347,100 +398,71 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _mapSummary(RouteData route) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .91),
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF0E1E8),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.eco_rounded, color: Color(0xFF956B7D)),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('${_modeLabel(mode)} 추천', style: const TextStyle(fontWeight: FontWeight.w800)),
-                Text(
-                  '${route.name} · 그늘 ${route.shade}% · 실내 ${route.indoor}%',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right_rounded),
-        ],
+  void _showLocationNotice() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('v0.3 디자인 샘플에서는 현재 위치를 부천 중심으로 표시합니다.'),
       ),
     );
   }
 
-  Widget _metric(String text) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF4EFF2),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(text, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
-      );
-
-  Widget _roundButton(IconData icon, VoidCallback onTap) => Material(
-        color: Colors.white,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: SizedBox(width: 52, height: 52, child: Icon(icon)),
-        ),
-      );
-
-  Widget _glassPill({required IconData icon, required String text}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: .88),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16),
-            const SizedBox(width: 5),
-            Text(text, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-          ],
-        ),
-      );
+  void _showSectionPreview(int index) {
+    const names = ['지도', '경로', '저장', '설정'];
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${names[index]} 화면은 다음 내비게이션 단계에서 연결합니다.')),
+    );
+  }
 
   void _showDestinationSheet() {
     showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+      useSafeArea: true,
+      builder: (sheetContext) => AppSheetFrame(
+        title: '목적지 선택',
+        subtitle: 'v0.3은 디자인 통합 검증용 샘플입니다.',
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('목적지 샘플', style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 12),
-            ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.flag_rounded)),
-              title: const Text('부천시청'),
-              subtitle: const Text('실제 검색 API 연결 전 샘플 목적지'),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              tileColor: const Color(0xFFF7F2F5),
-              onTap: () => Navigator.pop(context),
+            AppListSurface(
+              icon: Icons.flag_rounded,
+              title: '부천시청',
+              subtitle: '샘플 목적지 · 실제 검색 API 연결 전',
+              onTap: () => Navigator.pop(sheetContext),
+            ),
+            const SizedBox(height: AppSpace.xs),
+            AppListSurface(
+              icon: Icons.park_rounded,
+              title: '상동호수공원',
+              subtitle: '샘플 목적지 · 쾌적 경로 비교용',
+              onTap: () => Navigator.pop(sheetContext),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showRouteDetails(RouteData route) {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (_) => AppSheetFrame(
+        title: route.name,
+        subtitle:
+            '${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분 · 건물 통과 ${route.buildings}곳',
+        child: Column(
+          children: [
+            MetricGrid(route: route),
+            const SizedBox(height: AppSpace.md),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showStartSheet(route);
+                },
+                icon: const Icon(Icons.navigation_rounded),
+                label: const Text('이 경로로 출발'),
+              ),
             ),
           ],
         ),
@@ -451,28 +473,29 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showStartSheet(RouteData route) {
     showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+      useSafeArea: true,
+      builder: (_) => AppSheetFrame(
+        title: '${route.name} 선택',
+        subtitle:
+            '${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분 · 그늘 ${route.shade}% · 실내 ${route.indoor}%',
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.navigation_rounded, size: 42, color: Color(0xFF9E7185)),
-            const SizedBox(height: 8),
-            Text('${route.name} 선택', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text('${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분 · 건물 통과 ${route.buildings}곳'),
-            const SizedBox(height: 16),
+            const AppStatusNotice(
+              icon: Icons.info_outline_rounded,
+              text: '현재 APK는 디자인 통합 샘플입니다. 실제 GPS 안내는 v0.4부터 연결합니다.',
+            ),
+            const SizedBox(height: AppSpace.md),
             SizedBox(
               width: double.infinity,
-              child: FilledButton(
+              child: FilledButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('샘플 내비게이션: 실제 GPS/음성 엔진은 다음 단계에서 연결합니다.')),
+                    SnackBar(content: Text('${route.name}을(를) 선택했습니다.')),
                   );
                 },
-                child: const Text('샘플 안내 시작'),
+                icon: const Icon(Icons.navigation_rounded),
+                label: const Text('샘플 경로 선택'),
               ),
             ),
           ],
@@ -480,152 +503,940 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+}
 
-  String _modeLabel(RouteMode value) => switch (value) {
-        RouteMode.fast => '빠른 길',
-        RouteMode.comfort => '쾌적',
-        RouteMode.weather => '날씨 회피',
-        RouteMode.indoor => '실내 우선',
-        RouteMode.supply => '보급 우선',
-      };
+class AppSearchBar extends StatelessWidget {
+  const AppSearchBar({super.key, required this.onTap});
+  final VoidCallback onTap;
 
-  IconData _modeIcon(RouteMode value) => switch (value) {
-        RouteMode.fast => Icons.bolt_rounded,
-        RouteMode.comfort => Icons.eco_rounded,
-        RouteMode.weather => Icons.umbrella_rounded,
-        RouteMode.indoor => Icons.apartment_rounded,
-        RouteMode.supply => Icons.water_drop_rounded,
-      };
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceStrong,
+      borderRadius: BorderRadius.circular(AppRadius.control),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        onTap: onTap,
+        child: const SizedBox(
+          height: 52,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpace.md),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, color: AppColors.textMuted),
+                SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Text(
+                    '어디로 갈까요?',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(Icons.tune_rounded, color: AppColors.textMuted, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppCircleButton extends StatelessWidget {
+  const AppCircleButton({super.key, required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceStrong,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 52,
+          height: 52,
+          child: Icon(icon, color: AppColors.primaryDeep),
+        ),
+      ),
+    );
+  }
+}
+
+class AppModeBar extends StatelessWidget {
+  const AppModeBar({
+    super.key,
+    required this.selected,
+    required this.onChanged,
+  });
+  final RouteMode selected;
+  final ValueChanged<RouteMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.sm,
+          vertical: AppSpace.xxs,
+        ),
+        itemCount: RouteMode.values.length,
+        separatorBuilder: (_, __) => const SizedBox(width: AppSpace.xs),
+        itemBuilder: (_, index) {
+          final mode = RouteMode.values[index];
+          return AppModeChip(
+            icon: modeIcon(mode),
+            label: modeLabel(mode),
+            selected: mode == selected,
+            onTap: () => onChanged(mode),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class AppModeChip extends StatelessWidget {
+  const AppModeChip({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: AppMotion.fast,
+      curve: AppMotion.curve,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primarySoft : AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.sm,
+              vertical: AppSpace.xs,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 17,
+                  color: selected ? AppColors.primaryDeep : AppColors.textMuted,
+                ),
+                const SizedBox(width: AppSpace.xxs),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: selected ? AppColors.primaryDeep : AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppMapCard extends StatelessWidget {
+  const AppMapCard({
+    super.key,
+    required this.mode,
+    required this.selectedRoute,
+    required this.recommended,
+    required this.onSummaryTap,
+  });
+  final RouteMode mode;
+  final String selectedRoute;
+  final RouteData recommended;
+  final VoidCallback onSummaryTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(AppRadius.map),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CustomPaint(
+            painter: ComfortMapPainter(
+              selectedRoute: selectedRoute,
+              mode: mode,
+            ),
+          ),
+          const Positioned(
+            left: AppSpace.sm,
+            top: AppSpace.sm,
+            child: AppMapBadge(
+              icon: Icons.thermostat_rounded,
+              label: '31°C · 더움',
+              semanticColor: AppColors.heat,
+            ),
+          ),
+          const Positioned(
+            right: AppSpace.sm,
+            top: AppSpace.sm,
+            child: AppMapBadge(
+              icon: Icons.science_outlined,
+              label: '샘플',
+              semanticColor: AppColors.primary,
+            ),
+          ),
+          Positioned(
+            left: AppSpace.sm,
+            right: AppSpace.sm,
+            bottom: AppSpace.sm,
+            child: AppMapSummaryCard(
+              mode: mode,
+              route: recommended,
+              onTap: onSummaryTap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppMapBadge extends StatelessWidget {
+  const AppMapBadge({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.semanticColor,
+  });
+  final IconData icon;
+  final String label;
+  final Color semanticColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpace.sm,
+        vertical: AppSpace.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surface.withValues(alpha: .94),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        boxShadow: AppShadows.soft,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: semanticColor),
+          const SizedBox(width: AppSpace.xxs),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.text,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppMapSummaryCard extends StatelessWidget {
+  const AppMapSummaryCard({
+    super.key,
+    required this.mode,
+    required this.route,
+    required this.onTap,
+  });
+  final RouteMode mode;
+  final RouteData route;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface.withValues(alpha: .96),
+      borderRadius: BorderRadius.circular(AppRadius.control),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.sm),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: AppColors.primarySoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  modeIcon(mode),
+                  color: AppColors.primaryDeep,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${modeLabel(mode)} 추천',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${route.name} · 그늘 ${route.shade}% · 실내 ${route.indoor}%',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RoutePanel extends StatelessWidget {
+  const RoutePanel({
+    super.key,
+    required this.recommended,
+    required this.alternatives,
+    required this.selectedRoute,
+    required this.compact,
+    required this.onSelect,
+    required this.onStart,
+  });
+  final RouteData recommended;
+  final List<RouteData> alternatives;
+  final String selectedRoute;
+  final bool compact;
+  final ValueChanged<RouteData> onSelect;
+  final ValueChanged<RouteData> onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.sheet),
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.md,
+        compact ? AppSpace.sm : AppSpace.md,
+        AppSpace.md,
+        AppSpace.sm,
+      ),
+      child: Column(
+        children: [
+          PrimaryRouteCard(
+            route: recommended,
+            selected: selectedRoute == recommended.name,
+            compact: compact,
+            onTap: () => onSelect(recommended),
+            onStart: () => onStart(recommended),
+          ),
+          SizedBox(height: compact ? AppSpace.xs : AppSpace.sm),
+          Expanded(
+            child: Row(
+              children: [
+                for (var i = 0; i < alternatives.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppSpace.xs),
+                  Expanded(
+                    child: CompactRouteCard(
+                      route: alternatives[i],
+                      selected: selectedRoute == alternatives[i].name,
+                      onTap: () => onSelect(alternatives[i]),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PrimaryRouteCard extends StatelessWidget {
+  const PrimaryRouteCard({
+    super.key,
+    required this.route,
+    required this.selected,
+    required this.compact,
+    required this.onTap,
+    required this.onStart,
+  });
+  final RouteData route;
+  final bool selected;
+  final bool compact;
+  final VoidCallback onTap;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: AppMotion.standard,
+      curve: AppMotion.curve,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primarySoft : AppColors.surfaceStrong,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: AppShadows.soft,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          child: Padding(
+            padding: EdgeInsets.all(compact ? AppSpace.sm : AppSpace.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              route.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpace.xs),
+                          const AppRecommendationBadge(),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpace.xxs),
+                      Text(
+                        '${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      if (!compact) ...[
+                        const SizedBox(height: AppSpace.xs),
+                        Wrap(
+                          spacing: AppSpace.xs,
+                          runSpacing: AppSpace.xxs,
+                          children: [
+                            AppMetricPill(
+                              icon: Icons.park_rounded,
+                              label: '그늘 ${route.shade}%',
+                              color: AppColors.shade,
+                            ),
+                            AppMetricPill(
+                              icon: Icons.apartment_rounded,
+                              label: '실내 ${route.indoor}%',
+                              color: AppColors.indoor,
+                            ),
+                            AppMetricPill(
+                              icon: Icons.water_drop_rounded,
+                              label: '물 ${route.water}',
+                              color: AppColors.water,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                FilledButton(
+                  onPressed: onStart,
+                  style: FilledButton.styleFrom(
+                    minimumSize: Size(compact ? 62 : 72, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
+                  ),
+                  child: const Text('출발'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CompactRouteCard extends StatelessWidget {
+  const CompactRouteCard({
+    super.key,
+    required this.route,
+    required this.selected,
+    required this.onTap,
+  });
+  final RouteData route;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: AppMotion.standard,
+      curve: AppMotion.curve,
+      decoration: BoxDecoration(
+        color: selected ? AppColors.primarySoft : AppColors.background,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.control),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpace.sm,
+              vertical: AppSpace.xs,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  route.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: AppSpace.xxs),
+                Text(
+                  '${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '그늘 ${route.shade}% · 실내 ${route.indoor}%',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppRecommendationBadge extends StatelessWidget {
+  const AppRecommendationBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: const Text(
+        '추천',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class AppMetricPill extends StatelessWidget {
+  const AppMetricPill({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .10),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: AppSpace.xxs),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppSheetFrame extends StatelessWidget {
+  const AppSheetFrame({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(
+        AppSpace.lg,
+        AppSpace.xxs,
+        AppSpace.lg,
+        AppSpace.xl + MediaQuery.paddingOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: AppSpace.xxs),
+          Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: AppSpace.lg),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class AppListSurface extends StatelessWidget {
+  const AppListSurface({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(AppRadius.control),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.md),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: AppColors.primarySoft,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: AppColors.primaryDeep),
+              ),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class AppStatusNotice extends StatelessWidget {
+  const AppStatusNotice({
+    super.key,
+    required this.icon,
+    required this.text,
+  });
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpace.md),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadius.control),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: AppColors.primaryDeep),
+          const SizedBox(width: AppSpace.sm),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.primaryDeep,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MetricGrid extends StatelessWidget {
+  const MetricGrid({super.key, required this.route});
+  final RouteData route;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (Icons.park_rounded, '그늘', '${route.shade}%', AppColors.shade),
+      (Icons.apartment_rounded, '실내', '${route.indoor}%', AppColors.indoor),
+      (Icons.water_drop_rounded, '음수', '${route.water}곳', AppColors.water),
+      (Icons.wc_rounded, '화장실', '${route.toilets}곳', AppColors.primary),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - AppSpace.xs) / 2;
+        return Wrap(
+          spacing: AppSpace.xs,
+          runSpacing: AppSpace.xs,
+          children: items.map((item) {
+            return SizedBox(
+              width: itemWidth,
+              child: Container(
+                padding: const EdgeInsets.all(AppSpace.sm),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(AppRadius.control),
+                ),
+                child: Row(
+                  children: [
+                    Icon(item.$1, color: item.$4, size: 19),
+                    const SizedBox(width: AppSpace.xs),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.$2, style: Theme.of(context).textTheme.bodySmall),
+                          Text(
+                            item.$3,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.text,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
 }
 
 class ComfortMapPainter extends CustomPainter {
   ComfortMapPainter({required this.selectedRoute, required this.mode});
-
   final String selectedRoute;
   final RouteMode mode;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final background = Paint()..color = const Color(0xFFEAF0EC);
-    canvas.drawRect(Offset.zero & size, background);
+    canvas.drawRect(Offset.zero & size, Paint()..color = AppColors.map);
 
-    final blockPaint = Paint()..color = const Color(0xFFF9F6F4);
-    final shadePaint = Paint()..color = const Color(0xFFCFE0D5).withValues(alpha: .82);
-    final indoorPaint = Paint()..color = const Color(0xFFE8DCE4).withValues(alpha: .92);
-    final road = Paint()
-      ..color = Colors.white.withValues(alpha: .95)
-      ..strokeWidth = math.max(8, size.width * .024)
-      ..strokeCap = StrokeCap.round;
-
-    final minorRoad = Paint()
-      ..color = Colors.white.withValues(alpha: .78)
-      ..strokeWidth = math.max(4, size.width * .012)
-      ..strokeCap = StrokeCap.round;
-
-    for (var i = 0; i < 5; i++) {
-      final y = size.height * (.16 + i * .16);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y + (i.isEven ? 8 : -5)), minorRoad);
-    }
-    for (var i = 0; i < 4; i++) {
-      final x = size.width * (.14 + i * .23);
-      canvas.drawLine(Offset(x, 0), Offset(x + (i.isEven ? -8 : 7), size.height), road);
-    }
-
-    final blocks = <RRect>[
-      RRect.fromRectAndRadius(Rect.fromLTWH(size.width * .18, size.height * .20, size.width * .18, size.height * .12), const Radius.circular(10)),
-      RRect.fromRectAndRadius(Rect.fromLTWH(size.width * .45, size.height * .09, size.width * .22, size.height * .15), const Radius.circular(12)),
-      RRect.fromRectAndRadius(Rect.fromLTWH(size.width * .67, size.height * .34, size.width * .20, size.height * .14), const Radius.circular(12)),
-      RRect.fromRectAndRadius(Rect.fromLTWH(size.width * .21, size.height * .55, size.width * .23, size.height * .14), const Radius.circular(12)),
-      RRect.fromRectAndRadius(Rect.fromLTWH(size.width * .49, size.height * .61, size.width * .18, size.height * .12), const Radius.circular(10)),
-    ];
-    for (var i = 0; i < blocks.length; i++) {
-      canvas.drawRRect(blocks[i], i == 1 || i == 3 ? indoorPaint : blockPaint);
-    }
-
-    canvas.drawOval(Rect.fromLTWH(size.width * .03, size.height * .35, size.width * .22, size.height * .18), shadePaint);
-    canvas.drawOval(Rect.fromLTWH(size.width * .72, size.height * .05, size.width * .24, size.height * .20), shadePaint);
-
-    final fast = _path(size, 0);
-    final comfort = _path(size, 1);
-    final weather = _path(size, 2);
-
-    void drawRoute(Path path, Color color, bool selected) {
-      final outline = Paint()
-        ..color = Colors.white.withValues(alpha: selected ? .95 : .58)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = selected ? 9 : 6
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-      final line = Paint()
-        ..color = color.withValues(alpha: selected ? 1 : .30)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = selected ? 5.5 : 3
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round;
-      canvas.drawPath(path, outline);
-      canvas.drawPath(path, line);
-    }
-
-    drawRoute(fast, const Color(0xFF7185A3), selectedRoute == '빠른 길');
-    drawRoute(comfort, const Color(0xFF9C6D84), selectedRoute == '쾌적한 길');
-    drawRoute(weather, const Color(0xFF5F8C77), selectedRoute == '날씨 회피');
-
-    final start = Offset(size.width * .09, size.height * .78);
-    final end = Offset(size.width * .88, size.height * .18);
-    canvas.drawCircle(start, 9, Paint()..color = const Color(0xFF5A91D8));
-    canvas.drawCircle(start, 4, Paint()..color = Colors.white);
-    canvas.drawCircle(end, 10, Paint()..color = const Color(0xFFBA6A88));
-    canvas.drawCircle(end, 4, Paint()..color = Colors.white);
-
-    _drawAmenity(canvas, Offset(size.width * .35, size.height * .42), Icons.water_drop_rounded, const Color(0xFF5E9EC5));
-    _drawAmenity(canvas, Offset(size.width * .56, size.height * .30), Icons.wc_rounded, const Color(0xFF82739C));
-    _drawAmenity(canvas, Offset(size.width * .74, size.height * .59), Icons.chair_alt_rounded, const Color(0xFF7E9275));
-    _drawAmenity(canvas, Offset(size.width * .47, size.height * .68), Icons.apartment_rounded, const Color(0xFF9E7185));
-  }
-
-  Path _path(Size size, int type) {
-    final p = Path()..moveTo(size.width * .09, size.height * .78);
-    if (type == 0) {
-      p.lineTo(size.width * .26, size.height * .64);
-      p.lineTo(size.width * .38, size.height * .48);
-      p.lineTo(size.width * .62, size.height * .39);
-      p.lineTo(size.width * .88, size.height * .18);
-    } else if (type == 1) {
-      p.lineTo(size.width * .22, size.height * .69);
-      p.lineTo(size.width * .33, size.height * .51);
-      p.lineTo(size.width * .52, size.height * .54);
-      p.lineTo(size.width * .66, size.height * .34);
-      p.lineTo(size.width * .88, size.height * .18);
-    } else {
-      p.lineTo(size.width * .18, size.height * .70);
-      p.lineTo(size.width * .32, size.height * .60);
-      p.lineTo(size.width * .32, size.height * .35);
-      p.lineTo(size.width * .54, size.height * .35);
-      p.lineTo(size.width * .54, size.height * .20);
-      p.lineTo(size.width * .74, size.height * .20);
-      p.lineTo(size.width * .88, size.height * .18);
-    }
-    return p;
-  }
-
-  void _drawAmenity(Canvas canvas, Offset center, IconData icon, Color color) {
-    canvas.drawCircle(center, 15, Paint()..color = Colors.white.withValues(alpha: .96));
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontSize: 18,
-          fontFamily: icon.fontFamily,
-          package: icon.fontPackage,
-          color: color,
+    final buildingPaint = Paint()..color = AppColors.building;
+    final seed = math.Random(9);
+    for (var i = 0; i < 14; i++) {
+      final w = 34 + seed.nextDouble() * 52;
+      final h = 24 + seed.nextDouble() * 48;
+      final x = seed.nextDouble() * math.max(1, size.width - w);
+      final y = seed.nextDouble() * math.max(1, size.height - h);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, w, h),
+          const Radius.circular(8),
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    textPainter.paint(canvas, center - Offset(textPainter.width / 2, textPainter.height / 2));
+        buildingPaint,
+      );
+    }
+
+    final road = Paint()
+      ..color = AppColors.road
+      ..strokeWidth = 9
+      ..strokeCap = StrokeCap.round;
+    final thinRoad = Paint()
+      ..color = AppColors.surfaceStrong.withValues(alpha: .75)
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    for (final y in [size.height * .22, size.height * .48, size.height * .74]) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), road);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), thinRoad);
+    }
+    for (final x in [size.width * .20, size.width * .53, size.width * .82]) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), road);
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), thinRoad);
+    }
+
+    final routeColor = switch (mode) {
+      RouteMode.fast => AppColors.primary,
+      RouteMode.comfort => AppColors.shade,
+      RouteMode.weather => AppColors.heat,
+      RouteMode.indoor => AppColors.indoor,
+      RouteMode.supply => AppColors.water,
+    };
+
+    final routePaint = Paint()
+      ..color = routeColor
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(size.width * .12, size.height * .82)
+      ..lineTo(size.width * .20, size.height * .74)
+      ..lineTo(size.width * .20, size.height * .48)
+      ..lineTo(size.width * .53, size.height * .48)
+      ..lineTo(size.width * .53, size.height * .22)
+      ..lineTo(size.width * .84, size.height * .22);
+    canvas.drawPath(path, routePaint);
+
+    if (selectedRoute == '날씨 회피') {
+      canvas.drawLine(
+        Offset(size.width * .53, size.height * .48),
+        Offset(size.width * .53, size.height * .22),
+        Paint()
+          ..color = AppColors.indoor
+          ..strokeWidth = 9
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    canvas.drawCircle(
+      Offset(size.width * .12, size.height * .82),
+      8,
+      Paint()..color = AppColors.primaryDeep,
+    );
+    canvas.drawCircle(
+      Offset(size.width * .84, size.height * .22),
+      9,
+      Paint()..color = routeColor,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant ComfortMapPainter oldDelegate) =>
-      oldDelegate.selectedRoute != selectedRoute || oldDelegate.mode != mode;
+  bool shouldRepaint(covariant ComfortMapPainter oldDelegate) {
+    return oldDelegate.selectedRoute != selectedRoute || oldDelegate.mode != mode;
+  }
+}
+
+String modeLabel(RouteMode mode) {
+  switch (mode) {
+    case RouteMode.fast:
+      return '빠른';
+    case RouteMode.comfort:
+      return '쾌적';
+    case RouteMode.weather:
+      return '날씨';
+    case RouteMode.indoor:
+      return '실내';
+    case RouteMode.supply:
+      return '보급';
+  }
+}
+
+IconData modeIcon(RouteMode mode) {
+  switch (mode) {
+    case RouteMode.fast:
+      return Icons.bolt_rounded;
+    case RouteMode.comfort:
+      return Icons.eco_rounded;
+    case RouteMode.weather:
+      return Icons.cloud_outlined;
+    case RouteMode.indoor:
+      return Icons.apartment_rounded;
+    case RouteMode.supply:
+      return Icons.water_drop_rounded;
+  }
 }
