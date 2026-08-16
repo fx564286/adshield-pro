@@ -60,10 +60,11 @@ jobs:
           PY
 
           keytool -list -v \
+            -storetype JKS \
             -keystore /tmp/comfort_route_build/android/app/comfort-route-dev-signing.jks \
             -storepass comfort_route_dev_2026 \
             -alias comfort-route-dev | tee "$GITHUB_WORKSPACE/signing-key.txt"
-          grep -q '21:CD:C9:BA:58:7A:03:28:2D:8E:47:5F:49:53:0F:08:16:77:FB:B9:AD:0F:96:43:D7:98:D3:E2:DE:37:E7:C5' "$GITHUB_WORKSPACE/signing-key.txt"
+          grep -q 'F1:A7:90:6E:13:8A:24:64:47:C4:28:7D:4D:8A:D5:BB:6D:DA:A5:6D:AD:48:BB:3C:BE:4B:6B:76:87:7F:45:81' "$GITHUB_WORKSPACE/signing-key.txt"
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
@@ -97,7 +98,7 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/apk-signature.txt"
           "$AAPT" dump badging "$APK" | tee "$GITHUB_WORKSPACE/apk-badging.txt" || true
           "$AAPT" dump permissions "$APK" | tee "$GITHUB_WORKSPACE/apk-permissions.txt" || true
-          grep -qi '21cdc9ba587a03282d8e475f49530f081677fbb9ad0f9643d798d3e2de37e7c5' "$GITHUB_WORKSPACE/apk-signature.txt"
+          grep -qi 'f1a7906e138a246447c4287d4d8ad5bb6ddaa56dad48bb3cbe4b6b76877f4581' "$GITHUB_WORKSPACE/apk-signature.txt"
           grep -q "application-label:'쾌적길'" "$GITHUB_WORKSPACE/apk-badging.txt"
           grep -q "android.permission.INTERNET" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_COARSE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
