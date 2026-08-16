@@ -293,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compactHeight = constraints.maxHeight < 700;
-            final panelHeight = compactHeight ? 224.0 : 250.0;
+            final panelHeight = compactHeight ? 240.0 : 270.0;
 
             return Column(
               children: [
