@@ -43,7 +43,7 @@ jobs:
           cp comfort_route_sample/lib/main_v05.dart /tmp/comfort_route_build/lib/main.dart
           rm -f /tmp/comfort_route_build/lib/main_v05.dart
           python3 comfort_route_sample/tools/apply_v06.py
-          python3 comfort_route_sample/tools/apply_v061.py
+          python3 comfort_route_sample/tools/apply_v061_bootstrap.py
 
           MANIFEST=/tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' "$MANIFEST"
