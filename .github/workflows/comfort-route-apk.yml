@@ -11,7 +11,7 @@ on:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
-      - name: Create Android project and apply v0.6.1
+      - name: Create Android project and apply v0.6.2
         shell: bash
         run: |
           set -euxo pipefail
@@ -44,6 +44,7 @@ jobs:
           rm -f /tmp/comfort_route_build/lib/main_v05.dart
           python3 comfort_route_sample/tools/apply_v06.py
           python3 comfort_route_sample/tools/apply_v061_bootstrap.py
+          python3 comfort_route_sample/tools/apply_v062.py
 
           MANIFEST=/tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' "$MANIFEST"
@@ -54,11 +55,12 @@ jobs:
           p = Path('/tmp/comfort_route_build/android/app/build.gradle.kts')
           s = p.read_text()
           s = s.replace('            signingConfig = signingConfigs.getByName("debug")\n', '')
-          s = s.replace('        versionCode = flutter.versionCode', '        versionCode = 8')
-          s = s.replace('        versionName = flutter.versionName', '        versionName = "0.6.1"')
+          s = s.replace('        versionCode = flutter.versionCode', '        versionCode = 9')
+          s = s.replace('        versionName = flutter.versionName', '        versionName = "0.6.2"')
           p.write_text(s)
           PY
           grep -nE 'signingConfig|versionCode|versionName' /tmp/comfort_route_build/android/app/build.gradle.kts || true
+          cat /tmp/comfort_route_build/android/settings.gradle.kts || true
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
@@ -86,8 +88,8 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           BUILD_TOOLS_DIR="$(dirname "$APKSIGNER")"
 
-          "$ZIPALIGN" -p -f 4 "$UNSIGNED" "$GITHUB_WORKSPACE/comfort-route-v0.6.1-aligned-unsigned.apk"
-          "$ZIPALIGN" -c -v 4 "$GITHUB_WORKSPACE/comfort-route-v0.6.1-aligned-unsigned.apk" | tee "$GITHUB_WORKSPACE/zipalign-check.txt"
+          "$ZIPALIGN" -p -f 4 "$UNSIGNED" "$GITHUB_WORKSPACE/comfort-route-v0.6.2-aligned-unsigned.apk"
+          "$ZIPALIGN" -c -v 4 "$GITHUB_WORKSPACE/comfort-route-v0.6.2-aligned-unsigned.apk" | tee "$GITHUB_WORKSPACE/zipalign-check.txt"
 
           mkdir -p "$GITHUB_WORKSPACE/apksigner-bundle/lib"
           cp "$APKSIGNER" "$GITHUB_WORKSPACE/apksigner-bundle/apksigner"
@@ -98,13 +100,13 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          APK="$GITHUB_WORKSPACE/comfort-route-v0.6.1-aligned-unsigned.apk"
+          APK="$GITHUB_WORKSPACE/comfort-route-v0.6.2-aligned-unsigned.apk"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f \( -name aapt -o -name aapt2 \) | sort -V | tail -1)"
           "$AAPT" dump badging "$APK" | tee "$GITHUB_WORKSPACE/apk-badging.txt" || true
           "$AAPT" dump permissions "$APK" | tee "$GITHUB_WORKSPACE/apk-permissions.txt" || true
           grep -q "application-label:'쾌적길'" "$GITHUB_WORKSPACE/apk-badging.txt"
-          grep -q "versionCode='8'" "$GITHUB_WORKSPACE/apk-badging.txt"
-          grep -q "versionName='0.6.1'" "$GITHUB_WORKSPACE/apk-badging.txt"
+          grep -q "versionCode='9'" "$GITHUB_WORKSPACE/apk-badging.txt"
+          grep -q "versionName='0.6.2'" "$GITHUB_WORKSPACE/apk-badging.txt"
           grep -q "android.permission.INTERNET" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_COARSE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_FINE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
@@ -113,11 +115,11 @@ jobs:
       - name: Upload unsigned build bundle
         uses: actions/upload-artifact@v4
         with:
-          name: comfort-route-v0.6.1-unsigned-bundle
+          name: comfort-route-v0.6.2-unsigned-bundle
           if-no-files-found: error
           retention-days: 14
           path: |
-            comfort-route-v0.6.1-aligned-unsigned.apk
+            comfort-route-v0.6.2-aligned-unsigned.apk
             unsigned.sha256
             zipalign-check.txt
             apk-badging.txt
