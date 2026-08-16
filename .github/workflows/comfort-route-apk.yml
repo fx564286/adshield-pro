@@ -63,9 +63,11 @@ jobs:
           p = Path('/tmp/comfort_route_build/android/app/build.gradle.kts')
           s = p.read_text()
           s = s.replace('            signingConfig = signingConfigs.getByName("debug")\n', '')
+          s = s.replace('        versionCode = flutter.versionCode', '        versionCode = 6')
+          s = s.replace('        versionName = flutter.versionName', '        versionName = "0.5.0"')
           p.write_text(s)
           PY
-          grep -n 'signingConfig' /tmp/comfort_route_build/android/app/build.gradle.kts || true
+          grep -nE 'signingConfig|versionCode|versionName' /tmp/comfort_route_build/android/app/build.gradle.kts || true
           cat "$MANIFEST"
 
       - name: Analyze
@@ -112,6 +114,7 @@ jobs:
           "$AAPT" dump badging "$APK" | tee "$GITHUB_WORKSPACE/apk-badging.txt" || true
           "$AAPT" dump permissions "$APK" | tee "$GITHUB_WORKSPACE/apk-permissions.txt" || true
           grep -q "application-label:'쾌적길'" "$GITHUB_WORKSPACE/apk-badging.txt"
+          grep -q "versionCode='6'" "$GITHUB_WORKSPACE/apk-badging.txt"
           grep -q "versionName='0.5.0'" "$GITHUB_WORKSPACE/apk-badging.txt"
           grep -q "android.permission.INTERNET" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_COARSE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
