@@ -8,9 +8,6 @@ on:
       - '.github/workflows/comfort-route-apk.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -18,19 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Apply responsive panel source fix
-        shell: bash
-        run: |
-          set -euxo pipefail
-          sed -i 's/final panelHeight = compactHeight ? 224.0 : 250.0;/final panelHeight = compactHeight ? 240.0 : 270.0;/' comfort_route_sample/lib/main.dart
-          if ! git diff --quiet -- comfort_route_sample/lib/main.dart; then
-            git config user.name "comfort-route-ci"
-            git config user.email "comfort-route-ci@users.noreply.github.com"
-            git add comfort_route_sample/lib/main.dart
-            git commit -m "Increase responsive route panel height"
-            git push origin HEAD:comfort-route-mvp
-          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -56,6 +40,7 @@ jobs:
           rm -rf /tmp/comfort_route_build/lib /tmp/comfort_route_build/test
           cp -R comfort_route_sample/lib /tmp/comfort_route_build/lib
           cp -R comfort_route_sample/test /tmp/comfort_route_build/test
+          sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' /tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
@@ -88,6 +73,7 @@ jobs:
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f \( -name aapt -o -name aapt2 \) | sort -V | tail -1)"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/apk-signature.txt"
           "$AAPT" dump badging "$APK" | tee "$GITHUB_WORKSPACE/apk-badging.txt" || true
+          grep -q "application-label:'쾌적길'" "$GITHUB_WORKSPACE/apk-badging.txt"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
