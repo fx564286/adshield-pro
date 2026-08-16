@@ -39,6 +39,7 @@ jobs:
           cp comfort_route_sample/pubspec.yaml /tmp/comfort_route_build/pubspec.yaml
           rm -rf /tmp/comfort_route_build/lib
           cp -R comfort_route_sample/lib /tmp/comfort_route_build/lib
+          rm -rf /tmp/comfort_route_build/test
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
