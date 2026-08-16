@@ -40,7 +40,11 @@ jobs:
           rm -rf /tmp/comfort_route_build/lib /tmp/comfort_route_build/test
           cp -R comfort_route_sample/lib /tmp/comfort_route_build/lib
           cp -R comfort_route_sample/test /tmp/comfort_route_build/test
-          sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' /tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
+
+          MANIFEST=/tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
+          sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' "$MANIFEST"
+          sed -i '/<manifest/a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' "$MANIFEST"
+          cat "$MANIFEST"
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
@@ -60,30 +64,35 @@ jobs:
         run: |
           set -euxo pipefail
           flutter build apk --debug --no-pub
-          cp build/app/outputs/flutter-apk/app-debug.apk "$GITHUB_WORKSPACE/comfort-route-sample-v0.3-debug.apk"
+          cp build/app/outputs/flutter-apk/app-debug.apk "$GITHUB_WORKSPACE/comfort-route-sample-v0.4-debug.apk"
 
       - name: Verify APK
         shell: bash
         run: |
           set -euxo pipefail
-          APK="$GITHUB_WORKSPACE/comfort-route-sample-v0.3-debug.apk"
-          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/comfort-route-sample-v0.3-debug.apk.sha256"
+          APK="$GITHUB_WORKSPACE/comfort-route-sample-v0.4-debug.apk"
+          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/comfort-route-sample-v0.4-debug.apk.sha256"
           unzip -t "$APK" | tee "$GITHUB_WORKSPACE/apk-unzip-test.txt"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f \( -name aapt -o -name aapt2 \) | sort -V | tail -1)"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/apk-signature.txt"
           "$AAPT" dump badging "$APK" | tee "$GITHUB_WORKSPACE/apk-badging.txt" || true
+          "$AAPT" dump permissions "$APK" | tee "$GITHUB_WORKSPACE/apk-permissions.txt" || true
           grep -q "application-label:'쾌적길'" "$GITHUB_WORKSPACE/apk-badging.txt"
+          grep -q "android.permission.INTERNET" "$GITHUB_WORKSPACE/apk-permissions.txt"
+          grep -q "android.permission.ACCESS_COARSE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
+          grep -q "android.permission.ACCESS_FINE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: comfort-route-v0.3-apk
+          name: comfort-route-v0.4-apk
           if-no-files-found: error
           retention-days: 7
           path: |
-            comfort-route-sample-v0.3-debug.apk
-            comfort-route-sample-v0.3-debug.apk.sha256
+            comfort-route-sample-v0.4-debug.apk
+            comfort-route-sample-v0.4-debug.apk.sha256
             apk-unzip-test.txt
             apk-signature.txt
             apk-badging.txt
+            apk-permissions.txt
