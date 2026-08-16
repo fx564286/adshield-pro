@@ -8,9 +8,6 @@ on:
       - '.github/workflows/comfort-route-apk.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -18,36 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Normalize v0.4 source
-        shell: bash
-        run: |
-          set -euxo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('comfort_route_sample/lib/main.dart')
-          s = p.read_text()
-          s = s.replace(
-              """              const SimpleAttributionWidget(\n                source: Text('OpenStreetMap contributors'),\n                backgroundColor: Color(0xCCFFFFFF),\n              ),\n""",
-              "",
-          )
-          anchor = """          Positioned(\n            left: AppSpace.sm,\n            top: AppSpace.sm,\n"""
-          replacement = """          const Positioned(\n            left: 8,\n            bottom: 4,\n            child: _MapAttribution(),\n          ),\n          Positioned(\n            left: AppSpace.sm,\n            top: AppSpace.sm,\n"""
-          if 'child: _MapAttribution()' not in s:
-              s = s.replace(anchor, replacement, 1)
-          marker = 'class _StatusPill extends StatelessWidget {'
-          widget = """class _MapAttribution extends StatelessWidget {\n  const _MapAttribution();\n\n  @override\n  Widget build(BuildContext context) {\n    return Container(\n      constraints: const BoxConstraints(maxWidth: 190),\n      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),\n      decoration: BoxDecoration(\n        color: Colors.white.withValues(alpha: 0.9),\n        borderRadius: BorderRadius.circular(6),\n      ),\n      child: const Text(\n        '© OpenStreetMap contributors',\n        maxLines: 1,\n        overflow: TextOverflow.ellipsis,\n        style: TextStyle(\n          fontSize: 9,\n          color: AppColors.textMuted,\n          fontWeight: FontWeight.w600,\n        ),\n      ),\n    );\n  }\n}\n\n"""
-          if 'class _MapAttribution extends StatelessWidget' not in s:
-              s = s.replace(marker, widget + marker, 1)
-          p.write_text(s)
-          PY
-          if ! git diff --quiet -- comfort_route_sample/lib/main.dart; then
-            git config user.name "comfort-route-ci"
-            git config user.email "comfort-route-ci@users.noreply.github.com"
-            git add comfort_route_sample/lib/main.dart
-            git commit -m "Fix v0.4 map attribution overflow"
-            git push origin HEAD:comfort-route-mvp
-          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -77,7 +44,26 @@ jobs:
           MANIFEST=/tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' "$MANIFEST"
           sed -i '/<manifest/a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' "$MANIFEST"
-          cat "$MANIFEST"
+
+          base64 -d comfort_route_sample/signing/dev-keystore.b64 > /tmp/comfort_route_build/android/app/comfort-route-dev-signing.jks
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/comfort_route_build/android/app/build.gradle.kts')
+          s = p.read_text()
+          anchor = '    buildTypes {'
+          block = '''    signingConfigs {\n        create("comfortDev") {\n            storeFile = file("comfort-route-dev-signing.jks")\n            storePassword = "comfort_route_dev_2026"\n            keyAlias = "comfort-route-dev"\n            keyPassword = "comfort_route_dev_2026"\n        }\n    }\n\n'''
+          if 'create("comfortDev")' not in s:
+              s = s.replace(anchor, block + anchor, 1)
+          s = s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("comfortDev")')
+          p.write_text(s)
+          PY
+
+          keytool -list -v \
+            -keystore /tmp/comfort_route_build/android/app/comfort-route-dev-signing.jks \
+            -storepass comfort_route_dev_2026 \
+            -alias comfort-route-dev | tee "$GITHUB_WORKSPACE/signing-key.txt"
+          grep -q '21:CD:C9:BA:58:7A:03:28:2D:8E:47:5F:49:53:0F:08:16:77:FB:B9:AD:0F:96:43:D7:98:D3:E2:DE:37:E7:C5' "$GITHUB_WORKSPACE/signing-key.txt"
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
@@ -92,25 +78,26 @@ jobs:
           set -euxo pipefail
           flutter test --no-pub
 
-      - name: Build debug APK
+      - name: Build fixed-sign release APK
         working-directory: /tmp/comfort_route_build
         run: |
           set -euxo pipefail
-          flutter build apk --debug --no-pub
-          cp build/app/outputs/flutter-apk/app-debug.apk "$GITHUB_WORKSPACE/comfort-route-sample-v0.4-debug.apk"
+          flutter build apk --release --no-pub
+          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/comfort-route-sample-v0.4.1-fixed-sign.apk"
 
       - name: Verify APK
         shell: bash
         run: |
           set -euxo pipefail
-          APK="$GITHUB_WORKSPACE/comfort-route-sample-v0.4-debug.apk"
-          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/comfort-route-sample-v0.4-debug.apk.sha256"
+          APK="$GITHUB_WORKSPACE/comfort-route-sample-v0.4.1-fixed-sign.apk"
+          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/comfort-route-sample-v0.4.1-fixed-sign.apk.sha256"
           unzip -t "$APK" | tee "$GITHUB_WORKSPACE/apk-unzip-test.txt"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f \( -name aapt -o -name aapt2 \) | sort -V | tail -1)"
           "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/apk-signature.txt"
           "$AAPT" dump badging "$APK" | tee "$GITHUB_WORKSPACE/apk-badging.txt" || true
           "$AAPT" dump permissions "$APK" | tee "$GITHUB_WORKSPACE/apk-permissions.txt" || true
+          grep -qi '21cdc9ba587a03282d8e475f49530f081677fbb9ad0f9643d798d3e2de37e7c5' "$GITHUB_WORKSPACE/apk-signature.txt"
           grep -q "application-label:'쾌적길'" "$GITHUB_WORKSPACE/apk-badging.txt"
           grep -q "android.permission.INTERNET" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_COARSE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
@@ -119,12 +106,13 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: comfort-route-v0.4-apk
+          name: comfort-route-v0.4.1-fixed-sign-apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
           path: |
-            comfort-route-sample-v0.4-debug.apk
-            comfort-route-sample-v0.4-debug.apk.sha256
+            comfort-route-sample-v0.4.1-fixed-sign.apk
+            comfort-route-sample-v0.4.1-fixed-sign.apk.sha256
+            signing-key.txt
             apk-unzip-test.txt
             apk-signature.txt
             apk-badging.txt
