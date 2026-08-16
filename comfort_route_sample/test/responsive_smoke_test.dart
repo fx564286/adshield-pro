@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/main.dart';
+import 'package:comfort_route_sample/main.dart';
 
 void main() {
   const sizes = <Size>[
