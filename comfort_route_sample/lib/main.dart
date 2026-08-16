@@ -250,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ? CheckState.fail
             : CheckState.unknown;
     final mapState = _mapReady ? CheckState.pass : CheckState.running;
-    final routeState = CheckState.unavailable;
+    const routeState = CheckState.unavailable;
 
     return SizedBox(
       height: 38,
