@@ -26,7 +26,7 @@ jobs:
       - name: Flutter version
         run: flutter --version
 
-      - name: Create Android project and copy sample
+      - name: Create Android project and copy v0.5
         shell: bash
         run: |
           set -euxo pipefail
@@ -40,31 +40,23 @@ jobs:
           rm -rf /tmp/comfort_route_build/lib /tmp/comfort_route_build/test
           cp -R comfort_route_sample/lib /tmp/comfort_route_build/lib
           cp -R comfort_route_sample/test /tmp/comfort_route_build/test
+          cp comfort_route_sample/lib/main_v05.dart /tmp/comfort_route_build/lib/main.dart
 
           MANIFEST=/tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' "$MANIFEST"
           sed -i '/<manifest/a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' "$MANIFEST"
 
-          base64 -d comfort_route_sample/signing/dev-keystore.b64 > /tmp/comfort_route_build/android/app/comfort-route-dev-signing.jks
-
+          # Public CI must never contain the private signing key. Remove Flutter's
+          # generated debug-signing fallback so Gradle emits an unsigned release APK.
           python3 - <<'PY'
           from pathlib import Path
           p = Path('/tmp/comfort_route_build/android/app/build.gradle.kts')
           s = p.read_text()
-          anchor = '    buildTypes {'
-          block = '''    signingConfigs {\n        create("comfortDev") {\n            storeFile = file("comfort-route-dev-signing.jks")\n            storePassword = "comfort_route_dev_2026"\n            keyAlias = "comfort-route-dev"\n            keyPassword = "comfort_route_dev_2026"\n        }\n    }\n\n'''
-          if 'create("comfortDev")' not in s:
-              s = s.replace(anchor, block + anchor, 1)
-          s = s.replace('signingConfig = signingConfigs.getByName("debug")', 'signingConfig = signingConfigs.getByName("comfortDev")')
+          s = s.replace('            signingConfig = signingConfigs.getByName("debug")\n', '')
           p.write_text(s)
           PY
-
-          keytool -list -v \
-            -storetype JKS \
-            -keystore /tmp/comfort_route_build/android/app/comfort-route-dev-signing.jks \
-            -storepass comfort_route_dev_2026 \
-            -alias comfort-route-dev | tee "$GITHUB_WORKSPACE/signing-key.txt"
-          grep -q 'F1:A7:90:6E:13:8A:24:64:47:C4:28:7D:4D:8A:D5:BB:6D:DA:A5:6D:AD:48:BB:3C:BE:4B:6B:76:87:7F:45:81' "$GITHUB_WORKSPACE/signing-key.txt"
+          grep -n 'signingConfig' /tmp/comfort_route_build/android/app/build.gradle.kts || true
+          cat "$MANIFEST"
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
@@ -79,42 +71,53 @@ jobs:
           set -euxo pipefail
           flutter test --no-pub
 
-      - name: Build fixed-sign release APK
-        working-directory: /tmp/comfort_route_build
+      - name: Build unsigned release APK
+        shell: bash
+        working-directory: /tmp/comfort_route_build/android
         run: |
           set -euxo pipefail
-          flutter build apk --release --no-pub
-          cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/comfort-route-sample-v0.4.1-fixed-sign.apk"
+          ./gradlew assembleRelease --stacktrace
+          UNSIGNED="$(find /tmp/comfort_route_build -type f -name '*release*unsigned*.apk' | head -1)"
+          test -n "$UNSIGNED"
+          echo "UNSIGNED=$UNSIGNED"
 
-      - name: Verify APK
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign | sort -V | tail -1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          BUILD_TOOLS_DIR="$(dirname "$APKSIGNER")"
+
+          "$ZIPALIGN" -p -f 4 "$UNSIGNED" "$GITHUB_WORKSPACE/comfort-route-v0.5-aligned-unsigned.apk"
+          "$ZIPALIGN" -c -v 4 "$GITHUB_WORKSPACE/comfort-route-v0.5-aligned-unsigned.apk" | tee "$GITHUB_WORKSPACE/zipalign-check.txt"
+
+          mkdir -p "$GITHUB_WORKSPACE/apksigner-bundle/lib"
+          cp "$APKSIGNER" "$GITHUB_WORKSPACE/apksigner-bundle/apksigner"
+          cp "$BUILD_TOOLS_DIR/lib/apksigner.jar" "$GITHUB_WORKSPACE/apksigner-bundle/lib/apksigner.jar"
+          chmod +x "$GITHUB_WORKSPACE/apksigner-bundle/apksigner"
+
+      - name: Verify unsigned APK metadata
         shell: bash
         run: |
           set -euxo pipefail
-          APK="$GITHUB_WORKSPACE/comfort-route-sample-v0.4.1-fixed-sign.apk"
-          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/comfort-route-sample-v0.4.1-fixed-sign.apk.sha256"
-          unzip -t "$APK" | tee "$GITHUB_WORKSPACE/apk-unzip-test.txt"
-          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          APK="$GITHUB_WORKSPACE/comfort-route-v0.5-aligned-unsigned.apk"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f \( -name aapt -o -name aapt2 \) | sort -V | tail -1)"
-          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$GITHUB_WORKSPACE/apk-signature.txt"
           "$AAPT" dump badging "$APK" | tee "$GITHUB_WORKSPACE/apk-badging.txt" || true
           "$AAPT" dump permissions "$APK" | tee "$GITHUB_WORKSPACE/apk-permissions.txt" || true
-          grep -qi 'f1a7906e138a246447c4287d4d8ad5bb6ddaa56dad48bb3cbe4b6b76877f4581' "$GITHUB_WORKSPACE/apk-signature.txt"
           grep -q "application-label:'쾌적길'" "$GITHUB_WORKSPACE/apk-badging.txt"
+          grep -q "versionName='0.5.0'" "$GITHUB_WORKSPACE/apk-badging.txt"
           grep -q "android.permission.INTERNET" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_COARSE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_FINE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
+          sha256sum "$APK" | tee "$GITHUB_WORKSPACE/unsigned.sha256"
 
-      - name: Upload APK
+      - name: Upload unsigned build bundle
         uses: actions/upload-artifact@v4
         with:
-          name: comfort-route-v0.4.1-fixed-sign-apk
+          name: comfort-route-v0.5-unsigned-bundle
           if-no-files-found: error
           retention-days: 14
           path: |
-            comfort-route-sample-v0.4.1-fixed-sign.apk
-            comfort-route-sample-v0.4.1-fixed-sign.apk.sha256
-            signing-key.txt
-            apk-unzip-test.txt
-            apk-signature.txt
+            comfort-route-v0.5-aligned-unsigned.apk
+            unsigned.sha256
+            zipalign-check.txt
             apk-badging.txt
             apk-permissions.txt
+            apksigner-bundle/
