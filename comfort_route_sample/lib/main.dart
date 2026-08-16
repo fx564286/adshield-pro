@@ -340,11 +340,12 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
               if (markers.isNotEmpty) MarkerLayer(markers: markers),
-              const SimpleAttributionWidget(
-                source: Text('OpenStreetMap contributors'),
-                backgroundColor: Color(0xCCFFFFFF),
-              ),
             ],
+          ),
+          const Positioned(
+            left: 8,
+            bottom: 4,
+            child: _MapAttribution(),
           ),
           Positioned(
             left: AppSpace.sm,
@@ -1064,6 +1065,32 @@ class _HomeScreenState extends State<HomeScreen> {
       case null:
         return '확인 전';
     }
+  }
+}
+
+class _MapAttribution extends StatelessWidget {
+  const _MapAttribution();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 190),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text(
+        '© OpenStreetMap contributors',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 9,
+          color: AppColors.textMuted,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }
 
