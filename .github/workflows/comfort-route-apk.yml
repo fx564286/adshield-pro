@@ -16,6 +16,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Java version
+        run: |
+          java -version
+          javac -version
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -61,7 +73,6 @@ jobs:
           p.write_text(s)
           PY
           grep -nE 'signingConfig|versionCode|versionName' /tmp/comfort_route_build/android/app/build.gradle.kts || true
-          cat /tmp/comfort_route_build/android/settings.gradle.kts || true
 
       - name: Analyze
         working-directory: /tmp/comfort_route_build
@@ -81,6 +92,8 @@ jobs:
         working-directory: /tmp/comfort_route_build/android
         run: |
           set -euxo pipefail
+          java -version
+          javac -version
           ./gradlew assembleRelease --stacktrace
           UNSIGNED="$(find /tmp/comfort_route_build -type f -name '*release*unsigned*.apk' | head -1)"
           test -n "$UNSIGNED"
@@ -111,6 +124,7 @@ jobs:
           grep -q "android.permission.INTERNET" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_COARSE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
           grep -q "android.permission.ACCESS_FINE_LOCATION" "$GITHUB_WORKSPACE/apk-permissions.txt"
+          unzip -l "$APK" | grep -E 'lib/.*/libmaplibre|lib/.*/libc\+\+_shared|lib/.*/libflutter' | tee "$GITHUB_WORKSPACE/native-libs.txt" || true
           sha256sum "$APK" | tee "$GITHUB_WORKSPACE/unsigned.sha256"
 
       - name: Upload unsigned build bundle
@@ -125,4 +139,5 @@ jobs:
             zipalign-check.txt
             apk-badging.txt
             apk-permissions.txt
+            native-libs.txt
             apksigner-bundle/
