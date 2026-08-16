@@ -8,6 +8,9 @@ on:
       - '.github/workflows/comfort-route-apk.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -15,6 +18,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Normalize v0.4 source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sed -i 's/final routeState = CheckState.unavailable;/const routeState = CheckState.unavailable;/' comfort_route_sample/lib/main.dart
+          if ! git diff --quiet -- comfort_route_sample/lib/main.dart; then
+            git config user.name "comfort-route-ci"
+            git config user.email "comfort-route-ci@users.noreply.github.com"
+            git add comfort_route_sample/lib/main.dart
+            git commit -m "Fix v0.4 route status const"
+            git push origin HEAD:comfort-route-mvp
+          fi
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
