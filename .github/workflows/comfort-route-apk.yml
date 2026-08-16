@@ -41,6 +41,16 @@ jobs:
           cp -R comfort_route_sample/lib /tmp/comfort_route_build/lib
           cp -R comfort_route_sample/test /tmp/comfort_route_build/test
           cp comfort_route_sample/lib/main_v05.dart /tmp/comfort_route_build/lib/main.dart
+          rm -f /tmp/comfort_route_build/lib/main_v05.dart
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/comfort_route_build/lib/main.dart')
+          s = p.read_text()
+          s = s.replace('  LocationAccuracyStatus? _accuracyStatus;\n', '')
+          s = s.replace("""      try {\n        final accuracyStatus = await Geolocator.getLocationAccuracy();\n        if (mounted) setState(() => _accuracyStatus = accuracyStatus);\n      } catch (_) {}\n\n""", '')
+          p.write_text(s)
+          PY
 
           MANIFEST=/tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' "$MANIFEST"
