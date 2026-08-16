@@ -45,6 +45,7 @@ jobs:
           python3 comfort_route_sample/tools/apply_v06.py
           python3 comfort_route_sample/tools/apply_v061_bootstrap.py
           python3 comfort_route_sample/tools/apply_v062.py
+          python3 comfort_route_sample/tools/normalize_v062_lints.py
 
           MANIFEST=/tmp/comfort_route_build/android/app/src/main/AndroidManifest.xml
           sed -i 's/android:label="comfort_route_sample"/android:label="쾌적길"/' "$MANIFEST"
