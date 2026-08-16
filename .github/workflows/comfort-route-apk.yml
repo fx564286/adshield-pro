@@ -23,12 +23,29 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          sed -i 's/final routeState = CheckState.unavailable;/const routeState = CheckState.unavailable;/' comfort_route_sample/lib/main.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('comfort_route_sample/lib/main.dart')
+          s = p.read_text()
+          s = s.replace(
+              """              const SimpleAttributionWidget(\n                source: Text('OpenStreetMap contributors'),\n                backgroundColor: Color(0xCCFFFFFF),\n              ),\n""",
+              "",
+          )
+          anchor = """          Positioned(\n            left: AppSpace.sm,\n            top: AppSpace.sm,\n"""
+          replacement = """          const Positioned(\n            left: 8,\n            bottom: 4,\n            child: _MapAttribution(),\n          ),\n          Positioned(\n            left: AppSpace.sm,\n            top: AppSpace.sm,\n"""
+          if 'child: _MapAttribution()' not in s:
+              s = s.replace(anchor, replacement, 1)
+          marker = 'class _StatusPill extends StatelessWidget {'
+          widget = """class _MapAttribution extends StatelessWidget {\n  const _MapAttribution();\n\n  @override\n  Widget build(BuildContext context) {\n    return Container(\n      constraints: const BoxConstraints(maxWidth: 190),\n      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),\n      decoration: BoxDecoration(\n        color: Colors.white.withValues(alpha: 0.9),\n        borderRadius: BorderRadius.circular(6),\n      ),\n      child: const Text(\n        '© OpenStreetMap contributors',\n        maxLines: 1,\n        overflow: TextOverflow.ellipsis,\n        style: TextStyle(\n          fontSize: 9,\n          color: AppColors.textMuted,\n          fontWeight: FontWeight.w600,\n        ),\n      ),\n    );\n  }\n}\n\n"""
+          if 'class _MapAttribution extends StatelessWidget' not in s:
+              s = s.replace(marker, widget + marker, 1)
+          p.write_text(s)
+          PY
           if ! git diff --quiet -- comfort_route_sample/lib/main.dart; then
             git config user.name "comfort-route-ci"
             git config user.email "comfort-route-ci@users.noreply.github.com"
             git add comfort_route_sample/lib/main.dart
-            git commit -m "Fix v0.4 route status const"
+            git commit -m "Fix v0.4 map attribution overflow"
             git push origin HEAD:comfort-route-mvp
           fi
 
