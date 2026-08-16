@@ -19,52 +19,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Normalize compact route card source
+      - name: Apply responsive panel source fix
         shell: bash
         run: |
           set -euxo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('comfort_route_sample/lib/main.dart')
-          s = p.read_text()
-          old = """                const SizedBox(height: AppSpace.xxs),
-                Text(
-                  '${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '그늘 ${route.shade}% · 실내 ${route.indoor}%',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-"""
-          new = """                const SizedBox(height: AppSpace.xxs),
-                Text(
-                  '${route.distanceKm.toStringAsFixed(2)} km · ${route.minutes}분 · 그늘 ${route.shade}%',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-"""
-          if old in s:
-              p.write_text(s.replace(old, new, 1))
-              print('COMPACT_ROUTE_FIX_APPLIED')
-          else:
-              print('COMPACT_ROUTE_FIX_ALREADY_APPLIED')
-          PY
+          sed -i 's/final panelHeight = compactHeight ? 224.0 : 250.0;/final panelHeight = compactHeight ? 240.0 : 270.0;/' comfort_route_sample/lib/main.dart
           if ! git diff --quiet -- comfort_route_sample/lib/main.dart; then
             git config user.name "comfort-route-ci"
             git config user.email "comfort-route-ci@users.noreply.github.com"
             git add comfort_route_sample/lib/main.dart
-            git commit -m "Fix compact route card overflow"
+            git commit -m "Increase responsive route panel height"
             git push origin HEAD:comfort-route-mvp
           fi
 
