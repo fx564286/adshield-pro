@@ -75,36 +75,26 @@ if destination_missing_old not in s:
     raise SystemExit('route destination-missing lifecycle anchor missing')
 s = s.replace(destination_missing_old, destination_missing_new, 1)
 
-accuracy_old = '''      if (!_positionUsableForRouting) {
-        final accuracy = _position?.accuracy;
-        if (!autoReroute) {
-          _showMessage(accuracy == null
-              ? '현재 위치를 먼저 받아 주세요.'
-              : 'GPS 정확도가 ±${accuracy.toStringAsFixed(0)}m입니다. 80m 이하에서 경로를 계산해 주세요.');
-        } else {
-          _log('자동 재탐색 보류 · GPS 정확도 부족');
-        }
-        return;
-      }
-      if (requestGeneration != _routeRequestGeneration || !_samePoint(destination, _destination)) {
-'''
-accuracy_new = '''      if (!_positionUsableForRouting) {
-        final accuracy = _position?.accuracy;
-        if (!autoReroute) {
-          _autoStartGuidanceOnNextRoute = false;
-          _showMessage(accuracy == null
-              ? '현재 위치를 먼저 받아 주세요.'
-              : 'GPS 정확도가 ±${accuracy.toStringAsFixed(0)}m입니다. 80m 이하에서 경로를 계산해 주세요.');
-        } else {
-          _log('자동 재탐색 보류 · GPS 정확도 부족');
-        }
-        return;
-      }
-      if (requestGeneration != _routeRequestGeneration || !_samePoint(destination, _destination)) {
-'''
-if accuracy_old not in s:
-    raise SystemExit('route accuracy lifecycle anchor missing')
-s = s.replace(accuracy_old, accuracy_new, 1)
+# The GPS threshold/copy is intentionally allowed to evolve. Anchor this patch
+# on the semantic routing-eligibility branch rather than brittle user-visible text.
+accuracy_start_marker = '      if (!_positionUsableForRouting) {\n'
+stale_marker = '      if (requestGeneration != _routeRequestGeneration || !_samePoint(destination, _destination)) {\n'
+accuracy_start = s.find(accuracy_start_marker)
+if accuracy_start < 0:
+    raise SystemExit('route accuracy lifecycle start missing')
+accuracy_end = s.find(stale_marker, accuracy_start)
+if accuracy_end < 0:
+    raise SystemExit('route stale-generation lifecycle anchor missing')
+accuracy_block = s[accuracy_start:accuracy_end]
+non_reroute_branch = '        if (!autoReroute) {\n'
+if non_reroute_branch not in accuracy_block:
+    raise SystemExit('route accuracy non-reroute branch missing')
+accuracy_block = accuracy_block.replace(
+    non_reroute_branch,
+    non_reroute_branch + '          _autoStartGuidanceOnNextRoute = false;\n',
+    1,
+)
+s = s[:accuracy_start] + accuracy_block + s[accuracy_end:]
 
 catch_old = '''      if (requestGeneration != _routeRequestGeneration) {
         _log('무효화된 경로 요청 오류 무시: $error');
