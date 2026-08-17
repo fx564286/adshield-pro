@@ -21,6 +21,12 @@ void main() {
     expect(source, contains('unawaited(_selectDestination(place.point, place.name));'));
   });
 
+  test('destination route success auto-starts live guidance only for that flow', () {
+    expect(source, contains('_autoStartGuidanceOnNextRoute = true;'));
+    expect(source, contains('if (!autoReroute && _autoStartGuidanceOnNextRoute)'));
+    expect(source, contains('await _toggleTracking();'));
+  });
+
   test('camera commands survive vector style startup', () {
     expect(source, contains('LatLng? _pendingCameraPoint'));
     expect(source, contains('void _flushPendingMapCamera()'));
@@ -33,6 +39,13 @@ void main() {
     expect(source, contains('zoom = 18.6;'));
     expect(source, contains('zoom = 18.2;'));
     expect(source, contains('if (fitMap && !_tracking'));
+  });
+
+  test('close zoom targets route ahead instead of wasting half viewport behind user', () {
+    expect(source, contains('LatLng? _routePointAtAlongMeters(double alongMeters)'));
+    expect(source, contains('routeProjection.alongMeters + lookAheadMeters'));
+    expect(source, contains('? 60.0'));
+    expect(source, contains(': 34.0'));
   });
 
   test('off-route state widens view and display snap stays outside route logic', () {
