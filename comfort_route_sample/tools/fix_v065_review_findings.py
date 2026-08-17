@@ -3,6 +3,10 @@ from pathlib import Path
 p = Path('/tmp/comfort_route_build/lib/main.dart')
 s = p.read_text()
 
+# Flutter exposes 100-step FontWeight constants. Normalize the visual intent
+# without relying on a non-existent w650 constant.
+s = s.replace('FontWeight.w650', 'FontWeight.w600')
+
 # Review finding 1: OSRM maneuver distances are accumulated from RouteStep
 # distances, while projection.alongMeters is geometry length. Use the same
 # route-distance scale as the maneuvers to avoid drift on long routes.
@@ -134,6 +138,7 @@ if activate_tail not in s:
 s = s.replace(activate_tail, activate_tail_new, 1)
 
 required = [
+    'FontWeight.w600',
     'final traveledRouteMeters = routeTotal * progress;',
     'bool _ttsSpeakInFlight = false;',
     'int _guidanceRouteGeneration = 0;',
