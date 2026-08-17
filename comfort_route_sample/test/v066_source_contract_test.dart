@@ -15,6 +15,12 @@ void main() {
     expect(source, contains('45m 초과 샘플은 경로 진행·이탈·음성에 미반영'));
   });
 
+  test('poor remeasurement cannot overwrite an existing navigation-grade fix', () {
+    expect(source, contains('final preserveExisting = !usablePosition'));
+    expect(source, contains('GpsPolicy.usableForNavigation(_position!.accuracy)'));
+    expect(source, contains('GPS 재측정값 품질 저하 · 기존 내비 위치 유지'));
+  });
+
   test('GPS acquisition asks for best navigation accuracy and refines briefly', () {
     expect(source, contains('LocationAccuracy.bestForNavigation'));
     expect(source, contains('Future<Position> _refinePositionIfNeeded'));
@@ -39,6 +45,6 @@ void main() {
     expect(source, contains('toilets|drinking_water|shelter'));
     expect(source, contains("if (amenity == 'shelter') return '쉼터';"));
     expect(source, contains('공중화장실'));
-    expect(source, contains('경로 120m 주변 OSM 신호 · 운영 여부 미검증'));
+    expect(source, contains('현재 불러온 지도 범위 · 경로 120m 주변 OSM 신호 · 운영 여부 미검증'));
   });
 }
