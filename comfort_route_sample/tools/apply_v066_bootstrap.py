@@ -12,4 +12,10 @@ source = source.replace(
     "raise SystemExit('CurrentLocationMarker class anchor missing')",
     1,
 )
+# Keep strict flutter analyze clean after generated-source interpolation.
+source = source.replace(
+    "'${_koreanLabelLayerCount}개 layer 적용'",
+    "'$_koreanLabelLayerCount개 layer 적용'",
+    1,
+)
 exec(compile(source, str(source_path), 'exec'))
