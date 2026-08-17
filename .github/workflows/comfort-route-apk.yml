@@ -112,7 +112,19 @@ jobs:
           flutter pub get
           flutter analyze
 
-      - name: Unit and responsive tests
+      - name: v0.6.7 GPS stabilizer tests
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/gps_stabilizer_test.dart
+
+      - name: v0.6.7 GPS source contract
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/v067_source_contract_test.dart
+
+      - name: v0.6.7 navigation automation contract
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/v067_navigation_automation_contract_test.dart
+
+      - name: Unit and responsive regression tests
         working-directory: /tmp/comfort_route_build
         run: |
           set -euxo pipefail
