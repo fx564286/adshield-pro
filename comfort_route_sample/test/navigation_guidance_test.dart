@@ -50,6 +50,11 @@ void main() {
     expect(target!.distanceMeters, 0);
   });
 
+  test('clears arrival after pass tolerance instead of sticking forever', () {
+    final maneuvers = [maneuver(at: 100, type: 'arrive', modifier: 'straight')];
+    expect(selectNextGuidance(maneuvers, 119, passToleranceMeters: 18), isNull);
+  });
+
   test('maps common OSRM modifiers to directions', () {
     expect(guidanceDirection(maneuver(at: 10, modifier: 'sharp left')), GuidanceDirection.sharpLeft);
     expect(guidanceDirection(maneuver(at: 10, modifier: 'slight right')), GuidanceDirection.slightRight);
