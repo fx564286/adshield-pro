@@ -3,6 +3,17 @@ from pathlib import Path
 p = Path('/tmp/comfort_route_build/lib/main.dart')
 s = p.read_text()
 
+# AndroidSettings is re-exported by geolocator 14.x. Keep geolocator_android
+# pinned in pubspec for implementation reproducibility, but do not import its
+# library redundantly in app code. Its constructors are not const in 5.0.3.
+s = s.replace("import 'package:geolocator_android/geolocator_android.dart';\n", '', 1)
+s = s.replace('const AndroidSettings(', 'AndroidSettings(')
+s = s.replace(
+    '    final p = _position;\n    final displayPoint = _displayLocationPoint;\n    final center = displayPoint ?? _fallbackCenter;\n',
+    '    final displayPoint = _displayLocationPoint;\n    final center = displayPoint ?? _fallbackCenter;\n',
+    1,
+)
+
 # Keep the smoothing coefficient observable so QA can distinguish heavy
 # stationary damping from fast-motion tracking and strict analyzer sees the
 # state as intentionally used.
@@ -43,6 +54,8 @@ s = s.replace(
 )
 
 required = [
+    'AndroidSettings(',
+    'forceLocationManager: false',
     "_KeyValueRow(label: '평활 계수'",
     '_moveActiveMap(found.first.point, 16.8);',
     '검색 결과 지도 즉시 미리보기',
