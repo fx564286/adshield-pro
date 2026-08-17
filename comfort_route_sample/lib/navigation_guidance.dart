@@ -160,7 +160,7 @@ String guidanceCoreText(RouteManeuver maneuver) {
       final exit = maneuver.exitNumber;
       return exit == null || exit <= 0
           ? '회전교차로를 따라 진행하세요$roadSuffix'
-          : '회전교차로에서 ${exit}번째 출구로 나가세요$roadSuffix';
+          : '회전교차로에서 $exit번째 출구로 나가세요$roadSuffix';
     case GuidanceDirection.mergeLeft:
       return '왼쪽으로 합류하세요$roadSuffix';
     case GuidanceDirection.mergeRight:
