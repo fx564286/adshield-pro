@@ -73,6 +73,7 @@ jobs:
           python3 comfort_route_sample/tools/apply_v066_bootstrap.py
           python3 comfort_route_sample/tools/apply_v067_gps_stabilization.py
           python3 comfort_route_sample/tools/apply_v067_navigation_automation.py
+          python3 comfort_route_sample/tools/fix_v067_review_findings.py
 
           ACTIVITY=/tmp/comfort_route_build/android/app/src/main/kotlin/com/fx564286/comfort_route_sample/MainActivity.kt
           cp comfort_route_sample/android/MainActivity.kt "$ACTIVITY"
