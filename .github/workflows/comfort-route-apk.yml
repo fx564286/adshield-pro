@@ -2,7 +2,7 @@ name: comfort-route-apk
 
 on:
   push:
-    branches: [comfort-route-review-v064]
+    branches: [comfort-route-mvp]
     paths:
       - 'comfort_route_sample/**'
       - '.github/workflows/comfort-route-apk.yml'
