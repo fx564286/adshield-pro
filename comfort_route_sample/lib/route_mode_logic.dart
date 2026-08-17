@@ -6,6 +6,7 @@ class RouteScoreInput {
   const RouteScoreInput({
     required this.distanceMeters,
     required this.durationSeconds,
+    this.maneuverCount = 0,
     this.comfortSignalHits = 0,
     this.shelterSignalHits = 0,
     this.sourceIndex = 0,
@@ -13,6 +14,7 @@ class RouteScoreInput {
 
   final double distanceMeters;
   final double durationSeconds;
+  final int maneuverCount;
   final int comfortSignalHits;
   final int shelterSignalHits;
   final int sourceIndex;
@@ -31,10 +33,14 @@ int chooseRouteIndex(List<RouteScoreInput> routes, RoutePreference preference) {
   final minDistance = routes
       .map((route) => finitePositive(route.distanceMeters))
       .reduce(math.min);
+  final minManeuvers = routes
+      .map((route) => route.maneuverCount > 0 ? route.maneuverCount.toDouble() : 1.0)
+      .reduce(math.min);
 
   double score(RouteScoreInput route) {
     final durationRatio = finitePositive(route.durationSeconds) / minDuration;
     final distanceRatio = finitePositive(route.distanceMeters) / minDistance;
+    final maneuverRatio = (route.maneuverCount > 0 ? route.maneuverCount : 1) / minManeuvers;
     final comfort = math.min(math.max(route.comfortSignalHits, 0), 8) / 8.0;
     final shelter = math.min(math.max(route.shelterSignalHits, 0), 8) / 8.0;
 
@@ -42,9 +48,15 @@ int chooseRouteIndex(List<RouteScoreInput> routes, RoutePreference preference) {
       case RoutePreference.fast:
         return durationRatio * 0.85 + distanceRatio * 0.15;
       case RoutePreference.pleasant:
-        return durationRatio * 0.50 + distanceRatio * 0.30 - comfort * 0.20;
+        return durationRatio * 0.42 +
+            distanceRatio * 0.23 +
+            maneuverRatio * 0.20 -
+            comfort * 0.15;
       case RoutePreference.weatherAvoid:
-        return durationRatio * 0.50 + distanceRatio * 0.22 - shelter * 0.28;
+        // Until verified indoor/covered edges are available, total outdoor
+        // exposure distance is the dominant weather-avoidance signal. Nearby
+        // shelter-like POIs are only a small secondary hint.
+        return durationRatio * 0.32 + distanceRatio * 0.58 - shelter * 0.10;
     }
   }
 
