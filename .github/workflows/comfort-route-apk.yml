@@ -71,6 +71,7 @@ jobs:
           python3 comfort_route_sample/tools/apply_v065_guidance.py
           python3 comfort_route_sample/tools/fix_v065_review_findings.py
           python3 comfort_route_sample/tools/apply_v066_bootstrap.py
+          python3 comfort_route_sample/tools/normalize_v067_script.py
           python3 comfort_route_sample/tools/apply_v067_gps_stabilization.py
           python3 comfort_route_sample/tools/apply_v067_navigation_automation.py
           python3 comfort_route_sample/tools/fix_v067_review_findings.py
