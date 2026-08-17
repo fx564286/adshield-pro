@@ -14,6 +14,47 @@ s = s.replace(
     1,
 )
 
+# Destination selection is a navigation intent, unlike a later route-mode
+# refresh. Keep an explicit one-shot flag so only this flow can automatically
+# start live tracking after a valid route is actually received.
+state_anchor = '  double? _lastNavigationCameraZoom;\n'
+state_new = state_anchor + '  bool _autoStartGuidanceOnNextRoute = false;\n'
+if state_anchor not in s:
+    raise SystemExit('v067 nav camera state anchor missing')
+s = s.replace(state_anchor, state_new, 1)
+
+select_anchor = '''    _syncVectorAnnotations();
+    _moveActiveMap(point, 17.2);
+    await _fetchWalkingRoute();
+'''
+select_new = '''    _syncVectorAnnotations();
+    _moveActiveMap(point, 17.2);
+    _autoStartGuidanceOnNextRoute = true;
+    await _fetchWalkingRoute();
+'''
+if select_anchor not in s:
+    raise SystemExit('v067 immediate destination routing anchor missing')
+s = s.replace(select_anchor, select_new, 1)
+
+route_success_anchor = '''      _applyRoutePreferenceSelection(fitMap: !autoReroute);
+      _log('${autoReroute ? '자동 재탐색' : '실제 보행'} 후보 ${alternatives.length}개 수신 · ${_routePreferenceLogLabel} 적용');
+'''
+route_success_new = '''      _applyRoutePreferenceSelection(fitMap: !autoReroute);
+      if (!autoReroute && _autoStartGuidanceOnNextRoute) {
+        _autoStartGuidanceOnNextRoute = false;
+        if (!_tracking) {
+          Future<void>.microtask(() async {
+            if (!mounted || _tracking) return;
+            await _toggleTracking();
+          });
+        }
+      }
+      _log('${autoReroute ? '자동 재탐색' : '실제 보행'} 후보 ${alternatives.length}개 수신 · ${_routePreferenceLogLabel} 적용');
+'''
+if route_success_anchor not in s:
+    raise SystemExit('route success auto-guidance anchor missing')
+s = s.replace(route_success_anchor, route_success_new, 1)
+
 # Keep the smoothing coefficient observable so QA can distinguish heavy
 # stationary damping from fast-motion tracking and strict analyzer sees the
 # state as intentionally used.
@@ -53,6 +94,61 @@ s = s.replace(
     1,
 )
 
+# At high navigation zoom, centering the camera directly on the blue dot wastes
+# half the viewport behind the user. Move the camera target 18-60m ahead along
+# the route geometry while keeping navigation/off-route calculations on the
+# stabilized unsnapped coordinate.
+camera_anchor = '  void _updateNavigationCamera(Position position) {\n'
+lookahead_method = r'''  LatLng? _routePointAtAlongMeters(double alongMeters) {
+    if (_routePoints.isEmpty || _routeCumulativeMeters.length != _routePoints.length) return null;
+    final total = _routeCumulativeMeters.last;
+    if (total <= 0) return _routePoints.first;
+    final target = alongMeters.clamp(0.0, total).toDouble();
+    for (var i = 0; i < _routePoints.length - 1; i++) {
+      final start = _routeCumulativeMeters[i];
+      final end = _routeCumulativeMeters[i + 1];
+      if (target > end && i < _routePoints.length - 2) continue;
+      final span = end - start;
+      final t = span <= 0 ? 0.0 : ((target - start) / span).clamp(0.0, 1.0).toDouble();
+      final a = _routePoints[i];
+      final b = _routePoints[i + 1];
+      return LatLng(
+        a.latitude + (b.latitude - a.latitude) * t,
+        a.longitude + (b.longitude - a.longitude) * t,
+      );
+    }
+    return _routePoints.last;
+  }
+
+'''
+if camera_anchor not in s:
+    raise SystemExit('navigation camera method anchor missing')
+s = s.replace(camera_anchor, lookahead_method + camera_anchor, 1)
+
+camera_point_old = '''    final point = _displayLocationPoint ?? _navigationPointFor(position);
+    final validHeading = position.heading.isFinite &&
+'''
+camera_point_new = '''    final basePoint = _displayLocationPoint ?? _navigationPointFor(position);
+    var point = basePoint;
+    if (_offRouteSamples == 0) {
+      final routeProjection = _projectPointToRoute(_navigationPointFor(position));
+      if (routeProjection != null) {
+        final lookAheadMeters = nextDistance != null && nextDistance <= 35
+            ? math.min(18.0, nextDistance)
+            : speed >= 6.0
+                ? 60.0
+                : speed >= 2.8
+                    ? 48.0
+                    : 34.0;
+        point = _routePointAtAlongMeters(routeProjection.alongMeters + lookAheadMeters) ?? basePoint;
+      }
+    }
+    final validHeading = position.heading.isFinite &&
+'''
+if camera_point_old not in s:
+    raise SystemExit('navigation camera target anchor missing')
+s = s.replace(camera_point_old, camera_point_new, 1)
+
 required = [
     'AndroidSettings(',
     'forceLocationManager: false',
@@ -60,6 +156,10 @@ required = [
     '_moveActiveMap(found.first.point, 16.8);',
     '검색 결과 지도 즉시 미리보기',
     '결과를 누르면 즉시 경로를 계산합니다.',
+    '_autoStartGuidanceOnNextRoute = true;',
+    'Future<void>.microtask(() async',
+    'LatLng? _routePointAtAlongMeters(double alongMeters)',
+    'routeProjection.alongMeters + lookAheadMeters',
 ]
 for marker in required:
     if marker not in s:
