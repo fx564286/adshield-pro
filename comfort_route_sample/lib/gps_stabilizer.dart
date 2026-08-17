@@ -131,7 +131,18 @@ class GpsStabilizer {
       sample.longitude,
     );
     final impliedOutputSpeed = outputDisplacement / dtSeconds;
-    final motionSpeed = math.max(statedSpeed, impliedOutputSpeed);
+
+    // When Android reports almost no physical speed and the coordinate movement
+    // sits comfortably inside the combined uncertainty envelope, treat it as
+    // stationary GNSS jitter rather than deriving a false walking/cycling speed
+    // from the noisy coordinates themselves.
+    final withinUncertainty = outputDisplacement <= math.max(
+      6.0,
+      (previousRaw.accuracyMeters + sample.accuracyMeters) * 0.55,
+    );
+    final motionSpeed = statedSpeed < 0.5 && withinUncertainty
+        ? 0.0
+        : math.max(statedSpeed, impliedOutputSpeed);
 
     double alpha;
     if (dtSeconds > 10) {
@@ -151,7 +162,7 @@ class GpsStabilizer {
 
     final accuracyFactor = (28 / sample.accuracyMeters).clamp(0.45, 1.0);
     alpha *= accuracyFactor;
-    if (outputDisplacement > math.max(10, sample.accuracyMeters * 0.8)) {
+    if (!withinUncertainty && outputDisplacement > math.max(10, sample.accuracyMeters * 0.8)) {
       alpha += 0.12;
     }
     alpha = alpha.clamp(0.14, 0.88);
