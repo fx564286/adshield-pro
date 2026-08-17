@@ -124,6 +124,23 @@ class GpsStabilizer {
       }
     }
 
+    // A long sampling gap means the previous filtered point is stale. Once a
+    // usable fix returns, resynchronize directly instead of dragging the marker
+    // toward history for several more updates. Keep the sensor accuracy honest.
+    if (dtSeconds > 10) {
+      final resynced = GpsStabilizedFix(
+        latitude: sample.latitude,
+        longitude: sample.longitude,
+        sensorAccuracyMeters: sample.accuracyMeters,
+        alpha: 1,
+        decision: GpsStabilizerDecision.accepted,
+        rawDisplacementMeters: rawDisplacement,
+      );
+      _lastAcceptedRaw = sample;
+      _lastOutput = resynced;
+      return resynced;
+    }
+
     final outputDisplacement = distanceMeters(
       previousOutput.latitude,
       previousOutput.longitude,
@@ -145,10 +162,7 @@ class GpsStabilizer {
         : math.max(statedSpeed, impliedOutputSpeed);
 
     double alpha;
-    if (dtSeconds > 10) {
-      // After a long gap, avoid dragging the marker toward stale history.
-      alpha = 1;
-    } else if (sample.accuracyMeters <= 8) {
+    if (sample.accuracyMeters <= 8) {
       alpha = 0.82;
     } else if (motionSpeed >= 7) {
       alpha = 0.78;
