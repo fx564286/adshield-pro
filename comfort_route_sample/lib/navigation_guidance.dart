@@ -71,7 +71,7 @@ GuidanceTarget? selectNextGuidance(
     if (type == 'depart' && traveled > 12) continue;
 
     final remaining = maneuver.distanceFromStartMeters - traveled;
-    if (remaining >= -passToleranceMeters || type == 'arrive') {
+    if (remaining >= -passToleranceMeters) {
       return GuidanceTarget(
         index: index,
         maneuver: maneuver,
