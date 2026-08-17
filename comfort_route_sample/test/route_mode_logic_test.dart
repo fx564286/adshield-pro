@@ -25,11 +25,35 @@ void main() {
 
   test('pleasant preference may accept a small detour for comfort signals', () {
     const routes = [
-      RouteScoreInput(distanceMeters: 1200, durationSeconds: 760, sourceIndex: 0),
+      RouteScoreInput(
+        distanceMeters: 1200,
+        durationSeconds: 760,
+        maneuverCount: 12,
+        sourceIndex: 0,
+      ),
       RouteScoreInput(
         distanceMeters: 1240,
         durationSeconds: 785,
+        maneuverCount: 8,
         comfortSignalHits: 8,
+        sourceIndex: 1,
+      ),
+    ];
+    expect(chooseRouteIndex(routes, RoutePreference.pleasant), 1);
+  });
+
+  test('pleasant preference rewards a simpler route when otherwise close', () {
+    const routes = [
+      RouteScoreInput(
+        distanceMeters: 1200,
+        durationSeconds: 760,
+        maneuverCount: 16,
+        sourceIndex: 0,
+      ),
+      RouteScoreInput(
+        distanceMeters: 1220,
+        durationSeconds: 775,
+        maneuverCount: 6,
         sourceIndex: 1,
       ),
     ];
@@ -45,6 +69,14 @@ void main() {
         shelterSignalHits: 8,
         sourceIndex: 1,
       ),
+    ];
+    expect(chooseRouteIndex(routes, RoutePreference.weatherAvoid), 1);
+  });
+
+  test('weather avoidance primarily favors lower exposure distance', () {
+    const routes = [
+      RouteScoreInput(distanceMeters: 1500, durationSeconds: 740, sourceIndex: 0),
+      RouteScoreInput(distanceMeters: 1180, durationSeconds: 790, sourceIndex: 1),
     ];
     expect(chooseRouteIndex(routes, RoutePreference.weatherAvoid), 1);
   });
