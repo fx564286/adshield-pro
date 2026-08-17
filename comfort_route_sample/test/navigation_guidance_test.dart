@@ -58,6 +58,12 @@ void main() {
     expect(guidanceDirection(maneuver(at: 10, modifier: 'uturn')), GuidanceDirection.uTurn);
   });
 
+  test('new-name step never announces a false turn', () {
+    final m = maneuver(at: 80, type: 'new name', modifier: 'left', road: '새도로');
+    expect(guidanceDirection(m), GuidanceDirection.straight);
+    expect(guidanceCoreText(m), contains('직진'));
+  });
+
   test('roundabout exit is included in Korean instruction', () {
     final text = guidanceCoreText(maneuver(at: 200, type: 'roundabout', modifier: 'right', exit: 2));
     expect(text, contains('2번째 출구'));
