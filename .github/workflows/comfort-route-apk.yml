@@ -124,11 +124,33 @@ jobs:
         working-directory: /tmp/comfort_route_build
         run: flutter test --no-pub test/v067_navigation_automation_contract_test.dart
 
-      - name: Unit and responsive regression tests
+      - name: Legacy GPS quality regression
         working-directory: /tmp/comfort_route_build
-        run: |
-          set -euxo pipefail
-          flutter test --no-pub
+        run: flutter test --no-pub test/gps_quality_test.dart
+
+      - name: Legacy navigation guidance regression
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/navigation_guidance_test.dart
+
+      - name: Legacy route mode logic regression
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/route_mode_logic_test.dart
+
+      - name: v0.6.4 source regression
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/v064_source_contract_test.dart
+
+      - name: v0.6.5 source regression
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/v065_source_contract_test.dart
+
+      - name: v0.6.6 source regression
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/v066_source_contract_test.dart
+
+      - name: Responsive smoke regression
+        working-directory: /tmp/comfort_route_build
+        run: flutter test --no-pub test/responsive_smoke_test.dart
 
       - name: Build unsigned release APK
         shell: bash
