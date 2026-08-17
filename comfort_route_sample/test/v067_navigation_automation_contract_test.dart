@@ -27,6 +27,12 @@ void main() {
     expect(source, contains('await _toggleTracking();'));
   });
 
+  test('failed destination routing clears one-shot auto-guidance intent', () {
+    final clearCount = '_autoStartGuidanceOnNextRoute = false;'.allMatches(source).length;
+    expect(clearCount, greaterThanOrEqualTo(4));
+    expect(source, contains('if (!autoReroute) _autoStartGuidanceOnNextRoute = false;'));
+  });
+
   test('camera commands survive vector style startup', () {
     expect(source, contains('LatLng? _pendingCameraPoint'));
     expect(source, contains('void _flushPendingMapCamera()'));
