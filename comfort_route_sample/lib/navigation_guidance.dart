@@ -87,6 +87,9 @@ GuidanceDirection guidanceDirection(RouteManeuver maneuver) {
   final modifier = maneuver.modifier.trim().toLowerCase();
   if (type == 'depart') return GuidanceDirection.depart;
   if (type == 'arrive') return GuidanceDirection.arrive;
+  if (type == 'new name' || type == 'continue') {
+    return GuidanceDirection.straight;
+  }
   if (type == 'roundabout' ||
       type == 'rotary' ||
       type == 'roundabout turn' ||
@@ -120,9 +123,6 @@ GuidanceDirection guidanceDirection(RouteManeuver maneuver) {
       return GuidanceDirection.slightRight;
     case 'straight':
       return GuidanceDirection.straight;
-  }
-  if (type == 'continue' || type == 'new name') {
-    return GuidanceDirection.straight;
   }
   return GuidanceDirection.unknown;
 }
