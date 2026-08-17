@@ -54,6 +54,75 @@ if route_success_anchor not in s:
     raise SystemExit('route selection auto-guidance anchor missing')
 s = s.replace(route_success_anchor, route_success_new, 1)
 
+# A one-shot navigation intent must never leak into a later, unrelated route
+# refresh. Clear it only when the current/latest non-reroute request genuinely
+# cannot produce a route. Stale requests keep the flag because v0.6.4 queues the
+# newer destination request and invalidates the old generation.
+destination_missing_old = '''      if (destination == null) {
+        if (!autoReroute) _showMessage('먼저 목적지를 선택해 주세요.');
+        return;
+      }
+'''
+destination_missing_new = '''      if (destination == null) {
+        if (!autoReroute) {
+          _autoStartGuidanceOnNextRoute = false;
+          _showMessage('먼저 목적지를 선택해 주세요.');
+        }
+        return;
+      }
+'''
+if destination_missing_old not in s:
+    raise SystemExit('route destination-missing lifecycle anchor missing')
+s = s.replace(destination_missing_old, destination_missing_new, 1)
+
+accuracy_old = '''      if (!_positionUsableForRouting) {
+        final accuracy = _position?.accuracy;
+        if (!autoReroute) {
+          _showMessage(accuracy == null
+              ? '현재 위치를 먼저 받아 주세요.'
+              : 'GPS 정확도가 ±${accuracy.toStringAsFixed(0)}m입니다. 80m 이하에서 경로를 계산해 주세요.');
+        } else {
+          _log('자동 재탐색 보류 · GPS 정확도 부족');
+        }
+        return;
+      }
+      if (requestGeneration != _routeRequestGeneration || !_samePoint(destination, _destination)) {
+'''
+accuracy_new = '''      if (!_positionUsableForRouting) {
+        final accuracy = _position?.accuracy;
+        if (!autoReroute) {
+          _autoStartGuidanceOnNextRoute = false;
+          _showMessage(accuracy == null
+              ? '현재 위치를 먼저 받아 주세요.'
+              : 'GPS 정확도가 ±${accuracy.toStringAsFixed(0)}m입니다. 80m 이하에서 경로를 계산해 주세요.');
+        } else {
+          _log('자동 재탐색 보류 · GPS 정확도 부족');
+        }
+        return;
+      }
+      if (requestGeneration != _routeRequestGeneration || !_samePoint(destination, _destination)) {
+'''
+if accuracy_old not in s:
+    raise SystemExit('route accuracy lifecycle anchor missing')
+s = s.replace(accuracy_old, accuracy_new, 1)
+
+catch_old = '''      if (requestGeneration != _routeRequestGeneration) {
+        _log('무효화된 경로 요청 오류 무시: $error');
+        return;
+      }
+      setState(() {
+'''
+catch_new = '''      if (requestGeneration != _routeRequestGeneration) {
+        _log('무효화된 경로 요청 오류 무시: $error');
+        return;
+      }
+      if (!autoReroute) _autoStartGuidanceOnNextRoute = false;
+      setState(() {
+'''
+if catch_old not in s:
+    raise SystemExit('route error lifecycle anchor missing')
+s = s.replace(catch_old, catch_new, 1)
+
 # Keep the smoothing coefficient observable so QA can distinguish heavy
 # stationary damping from fast-motion tracking and strict analyzer sees the
 # state as intentionally used.
@@ -157,6 +226,7 @@ required = [
     '결과를 누르면 즉시 경로를 계산합니다.',
     '_autoStartGuidanceOnNextRoute = true;',
     'Future<void>.microtask(() async',
+    '_autoStartGuidanceOnNextRoute = false;',
     'LatLng? _routePointAtAlongMeters(double alongMeters)',
     'routeProjection.alongMeters + lookAheadMeters',
 ]
