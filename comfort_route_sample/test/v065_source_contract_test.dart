@@ -23,14 +23,23 @@ void main() {
   test('selected route atomically owns selected maneuver list', () {
     expect(source, contains('_routeManeuvers = route.maneuvers;'));
     expect(source, contains('_lastSpokenManeuverKey = null;'));
+    expect(source, contains('unawaited(_stopTtsSilently());'));
   });
 
-  test('guidance only hooks after normal route progress filtering', () {
+  test('guidance uses OSRM route-distance scale after GPS filtering', () {
+    expect(source, contains('position.accuracy > _maxNavigationAccuracyMeters'));
+    expect(source, contains('final traveledRouteMeters = routeTotal * progress;'));
     expect(
       source,
-      contains('_updateGuidanceForAlongMeters(projection.alongMeters, allowVoice: !isOffRoute);'),
+      contains('_updateGuidanceForAlongMeters(traveledRouteMeters, allowVoice: !isOffRoute);'),
     );
-    expect(source, contains('position.accuracy > _maxNavigationAccuracyMeters'));
+  });
+
+  test('voice guidance serializes speech and rejects stale maneuver calls', () {
+    expect(source, contains('bool _ttsSpeakInFlight = false;'));
+    expect(source, contains('if (_ttsSpeakInFlight) return;'));
+    expect(source, contains('if (_activeManeuver?.stableKey != key) return;'));
+    expect(source, contains('Future<void> _stopTtsSilently() async'));
   });
 
   test('voice guidance uses a dedicated platform channel and can be disabled', () {
