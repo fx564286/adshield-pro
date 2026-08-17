@@ -23,7 +23,7 @@ void main() {
   test('selected route atomically owns selected maneuver list', () {
     expect(source, contains('_routeManeuvers = route.maneuvers;'));
     expect(source, contains('_lastSpokenManeuverKey = null;'));
-    expect(source, contains('unawaited(_stopTtsSilently());'));
+    expect(source, contains('final guidanceGeneration = ++_guidanceRouteGeneration;'));
   });
 
   test('guidance uses OSRM route-distance scale after GPS filtering', () {
@@ -35,10 +35,12 @@ void main() {
     );
   });
 
-  test('voice guidance serializes speech and rejects stale maneuver calls', () {
+  test('voice guidance serializes speech and rejects stale route calls', () {
     expect(source, contains('bool _ttsSpeakInFlight = false;'));
+    expect(source, contains('int _guidanceRouteGeneration = 0;'));
     expect(source, contains('if (_ttsSpeakInFlight) return;'));
-    expect(source, contains('if (_activeManeuver?.stableKey != key) return;'));
+    expect(source, contains('generation != _guidanceRouteGeneration'));
+    expect(source, contains('Future<void> _restartGuidanceForActivatedRoute'));
     expect(source, contains('Future<void> _stopTtsSilently() async'));
   });
 
