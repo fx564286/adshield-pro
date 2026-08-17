@@ -10,11 +10,11 @@ void main() {
   });
 
   test('Android location stays on Fused provider with denser navigation samples', () {
-    expect(source, contains("import 'package:geolocator_android/geolocator_android.dart';"));
     expect(source, contains('AndroidSettings('));
     expect(source, contains('forceLocationManager: false'));
     expect(source, contains('distanceFilter: 2'));
     expect(source, contains('intervalDuration: Duration(seconds: 1)'));
+    expect(source, isNot(contains("import 'package:geolocator_android/geolocator_android.dart';")));
   });
 
   test('navigation uses adaptive stabilized coordinates and rejects teleport jumps', () {
