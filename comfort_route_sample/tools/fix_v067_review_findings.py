@@ -36,11 +36,11 @@ if select_anchor not in s:
     raise SystemExit('v067 immediate destination routing anchor missing')
 s = s.replace(select_anchor, select_new, 1)
 
-route_success_anchor = '''      _applyRoutePreferenceSelection(fitMap: !autoReroute);
-      _log('${autoReroute ? '자동 재탐색' : '실제 보행'} 후보 ${alternatives.length}개 수신 · ${_routePreferenceLogLabel} 적용');
-'''
-route_success_new = '''      _applyRoutePreferenceSelection(fitMap: !autoReroute);
-      if (!autoReroute && _autoStartGuidanceOnNextRoute) {
+# Do not key this insertion to user-visible logging; earlier lint normalization
+# legitimately changes interpolation syntax. Route selection itself is the
+# stable semantic anchor.
+route_success_anchor = '      _applyRoutePreferenceSelection(fitMap: !autoReroute);\n'
+route_success_new = route_success_anchor + '''      if (!autoReroute && _autoStartGuidanceOnNextRoute) {
         _autoStartGuidanceOnNextRoute = false;
         if (!_tracking) {
           Future<void>.microtask(() async {
@@ -49,10 +49,9 @@ route_success_new = '''      _applyRoutePreferenceSelection(fitMap: !autoReroute
           });
         }
       }
-      _log('${autoReroute ? '자동 재탐색' : '실제 보행'} 후보 ${alternatives.length}개 수신 · ${_routePreferenceLogLabel} 적용');
 '''
 if route_success_anchor not in s:
-    raise SystemExit('route success auto-guidance anchor missing')
+    raise SystemExit('route selection auto-guidance anchor missing')
 s = s.replace(route_success_anchor, route_success_new, 1)
 
 # Keep the smoothing coefficient observable so QA can distinguish heavy
